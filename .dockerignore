@@ -1,0 +1,24 @@
+# What an image build is sent: the sources, never what is installed, built
+# or kept on this machine. The image installs from the lockfiles and builds
+# for itself, so nothing local -- a database, a key, an env file, a build --
+# can end up in a layer.
+.git
+tools
+node_modules
+vendor
+dist
+dist-test
+.vite
+.phpunit.cache
+**/.DS_Store
+**/*.log
+
+# Secrets and state, wherever they are.
+**/.env
+**/.env.*
+**/*.key
+**/*.sqlite
+**/*.sqlite-*
+
+# Not part of what runs.
+tests

@@ -1,0 +1,18 @@
+/*
+ * The app's one stylesheet. It holds the two font families, and it is also
+ * where the StyleX plugin appends the CSS it compiles from the kit and the
+ * app: without a stylesheet the RSC root imports, that CSS is never linked.
+ */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/geist-mono';
+
+/*
+ * The kit sizes its boxes border-box -- a Container is 100% wide with its
+ * gutters inside -- and StyleX has no global selectors to say so. Without
+ * this, every page was its gutters wider than a phone's screen.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

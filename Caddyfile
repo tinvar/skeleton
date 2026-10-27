@@ -1,0 +1,60 @@
+# The app under FrankenPHP in worker mode.
+#
+# Started by `bin/tinvar serve` (or bin/serve), which sets the variables read
+# here: where to listen (TINVAR_HOST, TINVAR_PORT), where the app is
+# (TINVAR_APP_ROOT) and its build (TINVAR_BUILD_DIR), how many workers to run
+# (TINVAR_WORKERS), and the renderers' socket (TINVAR_SOCKET, read by the
+# workers from the environment).
+{
+	# Nothing to administer at runtime, nothing to persist between runs, and
+	# plain HTTP on loopback: browsers treat http://127.0.0.1 as secure, so
+	# the __Host- cookies work without TLS. Put TLS in front for anything else.
+	admin off
+	persist_config off
+	auto_https off
+
+	# A write to a client may stall for 8 s, not Caddy's default minute,
+	# before the connection is cut off: FrankenPHP's static binary holds one
+	# mutex around every write PHP makes, so one client that stops reading
+	# would hold every other response behind it for as long as its write was
+	# let stall (ADR 0051 in the framework's repository).
+	servers {
+		timeouts {
+			write_idle 8s
+		}
+	}
+
+	frankenphp {
+		worker {
+			file {$TINVAR_APP_ROOT}/public/worker.php
+			num {$TINVAR_WORKERS:4}
+		}
+	}
+}
+
+# Any Host header, on the one address asked for: a site address of 127.0.0.1
+# alone would listen on every interface and answer only requests naming it.
+http://:{$TINVAR_PORT:8080} {
+	bind {$TINVAR_HOST:127.0.0.1}
+
+	# Built assets: hashed names, so a file at a name never changes and can be
+	# cached for a year. Only /assets/ -- nothing else under dist/client is
+	# meant to be served. Unset -- started by anything but `tinvar serve` --
+	# is nowhere, and every asset a 404, rather than a directory under the root.
+	@assets path /assets/*
+	handle @assets {
+		root * {$TINVAR_BUILD_DIR:/nonexistent/tinvar-build}/client
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Everything else is the app. Rewritten to the worker script so no other
+	# file in public/ is ever run; the worker still sees the URI the browser
+	# asked for.
+	handle {
+		root * {$TINVAR_APP_ROOT}/public
+		rewrite * /worker.php
+		header -X-Powered-By
+		php
+	}
+}

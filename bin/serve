@@ -1,0 +1,70 @@
+#!/bin/sh
+# Serves the app: FrankenPHP in worker mode and a pool of renderers, through
+# the framework's `tinvar serve`, on a free port between 6000 and 7000 unless
+# --port says otherwise.
+#
+#   bin/serve [--host=HOST] [--port=PORT] [--workers=N] [--renderers=N] [--frankenphp=PATH]
+#   bin/serve --prebuilt      the container image's: builds nothing, dist/ read-only
+#
+# It migrates the database, builds the app if it has never been built, writes
+# the fragment manifest, records the build as released, and serves it.
+set -eu
+
+app=$(cd "$(dirname "$0")/.." && pwd)
+
+# The production profile, always, and dist/. First, before the database is
+# touched.
+if [ -n "${TINVAR_PROFILE:-}" ] && [ "$TINVAR_PROFILE" != production ]; then
+  echo "TINVAR_PROFILE=$TINVAR_PROFILE: bin/serve serves the production profile." >&2
+  exit 64
+fi
+if [ -n "${TINVAR_BUILD_DIR:-}" ]; then
+  echo "TINVAR_BUILD_DIR is set: bin/serve serves the app's own build, dist/. Unset it." >&2
+  exit 64
+fi
+
+# The schema the code expects, before anything uses it.
+php "$app/bin/tinvar" migrate >&2
+
+# --prebuilt is the image's (Dockerfile): the build and its fragment manifest
+# were made with the image, and dist/ is read-only. A build that is not all
+# there stops the start rather than being made where it cannot be kept.
+prebuilt=
+for argument in "$@"; do
+  [ "$argument" = --prebuilt ] && prebuilt=1
+done
+if [ -n "$prebuilt" ]; then
+  for argument in "$@"; do
+    shift
+    [ "$argument" = --prebuilt ] || set -- "$@" "$argument"
+  done
+  for file in rsc/index.js rsc/__vite_rsc_assets_manifest.js rsc/profile.json fragments.json; do
+    if [ ! -f "$app/dist/$file" ]; then
+      echo "--prebuilt, and there is no dist/$file: the image was built without the app's build." >&2
+      exit 66
+    fi
+  done
+  if ! grep -q '"profile":"production"' "$app/dist/rsc/profile.json"; then
+    echo "--prebuilt, and dist/ was not built for production: $(cat "$app/dist/rsc/profile.json")." >&2
+    exit 66
+  fi
+else
+  if [ ! -f "$app/dist/rsc/index.js" ]; then
+    echo "Building the app..." >&2
+    (cd "$app" && npx vite build >&2)
+  fi
+  # On every start, not only after a build: a route renamed in PHP changes
+  # it with nothing for Vite to rebuild.
+  php "$app/bin/tinvar" build:fragments >&2
+fi
+
+# The build is named by the hash of its client manifest -- what a browser
+# holds code from -- and recorded as released, so the one before it stays
+# retained for the clients still on it and `bin/tinvar build:revoke` can
+# name it.
+TINVAR_BUILD=$(php -r 'echo substr(hash_file("sha256", $argv[1]), 0, 16);' "$app/dist/rsc/__vite_rsc_assets_manifest.js")
+export TINVAR_BUILD
+php "$app/bin/tinvar" build:current "$TINVAR_BUILD" >&2 || true
+php "$app/bin/tinvar" build:prune >&2 || true
+
+exec php "$app/bin/tinvar" serve "$@"

@@ -1,0 +1,104 @@
+# A Tinvar app
+
+A PHP 8.5 core with a React Server Components renderer: PHP owns every
+request -- routing, middleware, authorization, validation, the ORM, queries
+and actions -- and a small pool of Node processes turns a React tree into
+HTML and an RSC stream.
+
+## Start
+
+You need PHP 8.5 with `pdo_sqlite`, `sockets`, `pcntl` and `posix`;
+Composer 2; Node 22.13 or later; and FrankenPHP's static binary
+(<https://github.com/php/frankenphp/releases>) at `tools/frankenphp`, in
+`TINVAR_FRANKENPHP`, or on your `PATH`.
+
+```sh
+composer create-project tinvar/skeleton my-app
+cd my-app
+bin/dev
+```
+
+`composer create-project` refuses a directory that is not empty. Once the
+app is installed it runs `bin/tinvar setup`, once: it generates the app key
+into your state directory (`~/.local/state/tinvar/`, never the project),
+writes the TypeScript the views use from the PHP, makes the SQLite database,
+and runs `npm install --ignore-scripts`. It runs nothing else it fetched.
+
+`bin/dev` is dev mode: Vite's dev server renders the app from source, an
+edit shows in the open page, codegen runs again as the PHP changes, and the
+dev toolbar sits over each page. Loopback only, never in production. To
+serve the build as production does:
+
+```sh
+npm run build
+bin/serve
+```
+
+## What is here
+
+```
+app/Kernel.php            the composition root: routes, queries, actions, policies
+app/Pages/                #[Page] and #[Layout] classes; Home is the home page
+app/Queries/              #[Query] classes, which server components call
+app/Actions/              #[Action] methods, which forms post to
+app/Requests/             form requests: what an action is posted
+app/Models/               #[Table] models
+app/Policies/             what #[Authorize] asks
+app/Data/                 the Data classes that cross to the renderer
+database/migrations/      one migration per file
+resources/pages/          the views, one .tsx per page or layout
+resources/components/     server and 'use client' components
+resources/entries/        the renderer's rsc, ssr and browser entries
+resources/types/          what bin/tinvar codegen writes
+tests/Feature/            Pest: pages, queries and actions through PHP's request path
+tests/components/         Vitest: client components against codegen's mocks
+public/worker.php         the FrankenPHP worker
+Caddyfile                 how FrankenPHP serves the app
+```
+
+The home page lists notes with a query (`RecentNotes`) and adds one with an
+action (`NoteActions::add`, posted by `<NoteForm>`). The app has no accounts
+yet, so both say `#[PublicAccess]` and `NotePolicy` lets anyone in: decide
+who may, once it has them.
+
+`bin/tinvar make:page`, `make:query`, `make:action`, `make:model` and
+`make:migration` write the next ones; register each in `app/Kernel.php`,
+and a view in `resources/entries/rsc.tsx`. `bin/tinvar help` lists every
+command.
+
+## Check it
+
+```sh
+vendor/bin/pest
+npx vitest run
+npm run lint
+bin/tinvar codegen --check
+bin/tinvar check
+```
+
+`bin/tinvar check` holds every page, query and action to the security
+model's build rules -- every model input is authorized, or says why not --
+and the lockfiles to `Kernel::packages()`.
+
+## Settings and secrets
+
+The app reads its settings from the environment; `.env.example` lists them
+with nothing secret filled in. The app key is `TINVAR_APP_KEY`, or the file
+`bin/tinvar setup` generated. Never commit a key: `.gitignore` and
+`.dockerignore` keep `.env`, `*.key` and the database out.
+
+## Production
+
+`Dockerfile` and `compose.yaml` build and run one container: FrankenPHP and
+the renderers as two users, nothing root's once both are started, a
+read-only root, every base pinned by digest and every binary by its sha256.
+The image holds no secret; it refuses to start without an app key and a
+probe token.
+
+```sh
+cp .env.example .env    # fill in APP_KEY and APP_PROBE_TOKEN
+docker compose up -d --build
+```
+
+Put a TLS terminator in front: the cookies are `__Host-`, which browsers
+send over https alone.
