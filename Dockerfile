@@ -30,10 +30,11 @@ FROM php:8.5-cli@sha256:635a4b998025ab269194639a5549c6fdcd9b4f88ec8cd761b092de86
 COPY docker/setup /usr/local/lib/setup
 RUN /usr/local/lib/setup >/dev/null
 
-# FrankenPHP's official static binary, v1.13.3 with PHP 8.5.12 -- the glibc
-# one, whose allocator is glibc's -- and tini, v0.19.0, the container's PID
-# 1 once the entrypoint has started both sides. Sums from each release's
-# assets.
+# FrankenPHP's official static binary, v1.13.3 with PHP 8.5.12, the glibc
+# one, whose allocator is glibc's; and tini, v0.19.0, the container's PID 1
+# once the entrypoint has started both sides. Sums from each release's
+# assets; `tinvar deps:check` in the framework's repository moves them with
+# the shop's.
 ARG TARGETARCH
 RUN set -eu; \
     case "$TARGETARCH" in \
