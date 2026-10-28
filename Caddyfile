@@ -4,7 +4,8 @@
 # here: where to listen (TINVAR_HOST, TINVAR_PORT), where the app is
 # (TINVAR_APP_ROOT) and its build (TINVAR_BUILD_DIR), how many workers to run
 # (TINVAR_WORKERS), and the renderers' socket (TINVAR_SOCKET, read by the
-# workers from the environment).
+# workers from the environment). APP_STORAGE, from the environment it is
+# started in, is where the app keeps uploaded files on local disk, if it does.
 {
 	# Nothing to administer at runtime, nothing to persist between runs, and
 	# plain HTTP on loopback: browsers treat http://127.0.0.1 as secure, so
@@ -17,7 +18,10 @@
 	# before the connection is cut off: FrankenPHP's static binary holds one
 	# mutex around every write PHP makes, so one client that stops reading
 	# would hold every other response behind it for as long as its write was
-	# let stall (ADR 0051 in the framework's repository).
+	# let stall (ADR 0051 in the framework's repository). The workers no
+	# longer write to clients (the `intercept` block below), so this bounds
+	# how long a slow client holds Caddy's copy of a response, and the writes
+	# still a worker's: a body over a megabyte, or a stream of no known length.
 	servers {
 		timeouts {
 			write_idle 8s
@@ -54,7 +58,47 @@ http://:{$TINVAR_PORT:8080} {
 	handle {
 		root * {$TINVAR_APP_ROOT}/public
 		rewrite * /worker.php
-		header -X-Powered-By
-		php
+
+		# None of the headers below is for the client.
+		header {
+			-X-Powered-By
+			-X-Accel-Buffering
+			-X-Accel-Redirect
+		}
+
+		# No worker writes to a client (ADR 0081 in the framework's
+		# repository). Every write PHP makes goes through one mutex in the
+		# static binary, so a write blocked on a client that stopped reading
+		# would hold every other worker's response until `write_idle` cut it
+		# off. Here a response is held whole, in memory, while the worker
+		# writes it, and Caddy sends it once the worker is done, outside the
+		# mutex. `bin/tinvar check` refuses a Caddyfile without this block.
+		#
+		# Not every response: Tinvar\Http\Sapi marks one to pass on as it
+		# comes -- larger than a megabyte, or streamed with no length -- with
+		# `X-Accel-Buffering: no`. And a stored file goes out with no body
+		# from PHP at all: `X-Accel-Redirect` names it below APP_STORAGE, the
+		# directory the app keeps uploaded files in on local disk, and the
+		# file server sends it. Unset, PHP sends files itself, and the root
+		# here is nowhere.
+		intercept {
+			@file header X-Accel-Redirect *
+			handle_response @file {
+				root * {$APP_STORAGE:/nonexistent/tinvar-storage}
+				rewrite * {http.intercept.header.X-Accel-Redirect}
+				file_server
+			}
+
+			@whole header !X-Accel-Buffering
+			handle_response @whole {
+				# Nothing to do but send what was held: a route that writes
+				# nothing leaves the response as PHP made it.
+				vars tinvar_held_whole true
+			}
+		}
+
+		php {
+			env TINVAR_FILE_ROOT "{$APP_STORAGE}"
+		}
 	}
 }

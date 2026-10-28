@@ -26,6 +26,7 @@ use Tinvar\Packages\PackageLock;
 use Tinvar\Packages\SupplyChain;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Routing\RouteRegistry;
+use Tinvar\Server\CaddyfileRules;
 
 /** The app's root: where composer.json, package.json and their lockfiles are. */
 const APP_ROOT = __DIR__ . '/..';
@@ -170,7 +171,9 @@ function setup(): int
 /**
  * The build rules over every entry point and payload the app declares, and
  * the supply chain: composer.lock and package-lock.json pinned and held to
- * Kernel::packages(), and any Dockerfile's images pinned by digest.
+ * Kernel::packages(), and any Dockerfile's images pinned by digest; and the
+ * Caddyfile, which must hold each response whole around `php` and keep the
+ * X-Accel headers from the client (Tinvar\Server\CaddyfileRules).
  */
 function check(): int
 {
@@ -180,15 +183,17 @@ function check(): int
         ...(new BuildRules(Kernel::MODELS))->check(APP_ENTRY_POINTS, $payloads),
     ];
     $supplyChain = (new SupplyChain(APP_ROOT, Kernel::packages()))->check();
+    $caddyfile = CaddyfileRules::check(APP_ROOT . '/Caddyfile');
 
-    if ($violations === [] && $supplyChain === []) {
+    if ($violations === [] && $supplyChain === [] && $caddyfile === []) {
         printf("ok: %d entry points, %d payloads, no violations\n", \count(APP_ENTRY_POINTS), \count($payloads));
         printf("ok: %s and %s pinned, no undeclared packages\n", Lockfiles::COMPOSER, Lockfiles::NPM);
+        echo "ok: Caddyfile holds every PHP response whole and keeps the X-Accel headers from clients\n";
 
         return 0;
     }
 
-    foreach (['Build rules failed:' => $violations, 'Supply chain failed:' => $supplyChain] as $heading => $lines) {
+    foreach (['Build rules failed:' => $violations, 'Supply chain failed:' => $supplyChain, 'Caddyfile failed:' => $caddyfile] as $heading => $lines) {
         if ($lines !== []) {
             fwrite(STDERR, $heading . "\n  " . implode("\n  ", $lines) . "\n");
         }
