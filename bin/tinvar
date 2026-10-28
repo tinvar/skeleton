@@ -70,7 +70,7 @@ function help(string $error = ''): int
     echo <<<TXT
     bin/tinvar <command>
 
-      setup                  What composer create-project runs once: the app key, codegen,
+      setup                  What composer create-project runs once: the app key and probe token, codegen,
                              the database, and npm install with no install scripts
       check                  Run the security model's build rules over the app, and hold its
                              lockfiles to its PackagePolicy (no network)
@@ -111,8 +111,8 @@ function help(string $error = ''): int
 }
 
 /**
- * Once, after composer create-project has installed the app: the key, the
- * generated TypeScript, the database, then npm install -- from npm's
+ * Once, after composer create-project has installed the app: the key and
+ * the probe token, the generated TypeScript, the database, then npm install -- from npm's
  * registry and Meridian's host, with no package's install script run. It
  * runs nothing it fetched: codegen and the migrations are this app's own
  * code and the framework's, which Composer installed.
@@ -123,14 +123,17 @@ function setup(): int
 
     try {
         Kernel::appKey();
+        Kernel::probeToken();
     } catch (RuntimeException $e) {
         fwrite(STDERR, $e->getMessage() . "\n");
 
         return 1;
     }
-    // Where it is, never what it is.
+    // Where each is, never what it is.
     $file = getenv('TINVAR_APP_KEY') ? 'TINVAR_APP_KEY' : Kernel::keyFile();
     echo "app key: {$file}\n";
+    $probe = getenv('TINVAR_PROBE_TOKEN') ? 'TINVAR_PROBE_TOKEN' : Kernel::probeTokenFile();
+    echo "probe token: {$probe}\n";
 
     if (codegen([]) !== 0 || migrations('migrate', []) !== 0) {
         return 1;

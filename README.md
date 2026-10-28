@@ -20,7 +20,8 @@ bin/dev
 
 `composer create-project` refuses a directory that is not empty. Once the
 app is installed it runs `bin/tinvar setup`, once: it generates the app key
-into your state directory (`~/.local/state/tinvar/`, never the project),
+and the probe token into your state directory (`~/.local/state/tinvar/`,
+never the project),
 writes the TypeScript the views use from the PHP, makes the SQLite database,
 and runs `npm install --ignore-scripts`. It runs nothing else it fetched.
 
@@ -84,7 +85,16 @@ and the lockfiles to `Kernel::packages()`.
 
 The app reads its settings from the environment; `.env.example` lists them
 with nothing secret filled in. The app key is `TINVAR_APP_KEY`, or the file
-`bin/tinvar setup` generated. Never commit a key: `.gitignore` and
+`bin/tinvar setup` generated. `/_health`, `/_ready` and `/_metrics` let in
+the probe token alone, as `Authorization: Bearer <token>`: it is
+`TINVAR_PROBE_TOKEN`, or the `.probe-token` file setup generated beside the
+key. No caller gets in for being on loopback -- a TLS terminator on the
+same machine is on loopback too -- unless `TINVAR_PROBE_TRUST_LOOPBACK=1`.
+
+```sh
+curl -H "Authorization: Bearer $(cat ~/.local/state/tinvar/my-app-*.probe-token)" http://127.0.0.1:6123/_health
+```
+ Never commit a key: `.gitignore` and
 `.dockerignore` keep `.env`, `*.key` and the database out.
 
 ## Production

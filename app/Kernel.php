@@ -632,10 +632,44 @@ final class Kernel implements TestableApplication, Terminable
             return $configured;
         }
 
+        return self::stateFile('key')
+            ?? throw new \RuntimeException('No place to keep a generated app key: set TINVAR_APP_KEY, or TINVAR_APP_KEY_FILE (absolute, outside the project, readable by this user alone).');
+    }
+
+    /**
+     * The token /_health, /_ready and /_metrics let in: TINVAR_PROBE_TOKEN,
+     * or the one generated into TINVAR_PROBE_TOKEN_FILE -- or, by default,
+     * into this user's state directory beside the app key -- the first time
+     * one is needed. `bin/tinvar setup` makes it, and says where it is.
+     */
+    public static function probeToken(): string
+    {
+        return AppKey::resolve('TINVAR_PROBE_TOKEN', self::probeTokenFile());
+    }
+
+    /** Where the probe token is generated when TINVAR_PROBE_TOKEN gives none. */
+    public static function probeTokenFile(): string
+    {
+        $configured = getenv('TINVAR_PROBE_TOKEN_FILE');
+        if (\is_string($configured) && $configured !== '') {
+            if (!str_starts_with($configured, '/')) {
+                throw new \RuntimeException("TINVAR_PROBE_TOKEN_FILE must be an absolute path; got {$configured}.");
+            }
+
+            return $configured;
+        }
+
+        return self::stateFile('probe-token')
+            ?? throw new \RuntimeException('No place to keep a generated probe token: set TINVAR_PROBE_TOKEN, or TINVAR_PROBE_TOKEN_FILE (absolute, outside the project, readable by this user alone).');
+    }
+
+    /** A file of this app's in this user's state directory, by extension; null with none. */
+    private static function stateFile(string $extension): ?string
+    {
         // One file per app on this machine, named for where it is: two apps
         // made from this skeleton never sign with one key.
         $root = realpath(\dirname(__DIR__)) ?: \dirname(__DIR__);
-        $name = (preg_replace('/[^a-z0-9-]+/', '-', strtolower(basename($root))) ?? 'app') . '-' . substr(hash('sha256', $root), 0, 12) . '.key';
+        $name = (preg_replace('/[^a-z0-9-]+/', '-', strtolower(basename($root))) ?? 'app') . '-' . substr(hash('sha256', $root), 0, 12) . '.' . $extension;
 
         // The XDG spec says to ignore a relative XDG_STATE_HOME; so does this.
         $state = getenv('XDG_STATE_HOME');
@@ -647,7 +681,7 @@ final class Kernel implements TestableApplication, Terminable
             return "{$home}/.local/state/tinvar/{$name}";
         }
 
-        throw new \RuntimeException('No place to keep a generated app key: set TINVAR_APP_KEY, or TINVAR_APP_KEY_FILE (absolute, outside the project, readable by this user alone).');
+        return null;
     }
 
     /** APP_DATABASE, or database/app.sqlite. */
@@ -685,20 +719,21 @@ final class Kernel implements TestableApplication, Terminable
 
     /**
      * Who may read /_health, /_ready and /_metrics: a caller with the probe
-     * token (TINVAR_PROBE_TOKEN, 32 characters or more), and loopback --
-     * unless TINVAR_PROBE_TRUST_LOOPBACK is 0, as the container image has
-     * it, since the renderers share its loopback. Anything but 1 or 0 is
-     * refused rather than read as either.
+     * token (probeToken(), 32 characters or more), and no one for where
+     * they connect from. Loopback is no proof of being a probe: a TLS
+     * terminator or a proxy on the same machine, which may add no header to
+     * say so, and the renderers beside PHP all connect from it. So it is
+     * trusted only when TINVAR_PROBE_TRUST_LOOPBACK is 1; anything but 1 or
+     * 0 is refused rather than read as either.
      */
     public static function probeAccess(): ProbeAccess
     {
         $trust = getenv('TINVAR_PROBE_TRUST_LOOPBACK');
-        $trust = $trust === false || $trust === '' ? '1' : $trust;
+        $trust = $trust === false || $trust === '' ? '0' : $trust;
         if ($trust !== '1' && $trust !== '0') {
             throw new \InvalidArgumentException("TINVAR_PROBE_TRUST_LOOPBACK is 1 or 0; got '{$trust}'.");
         }
-        $token = getenv('TINVAR_PROBE_TOKEN');
-        $token = \is_string($token) && $token !== '' ? $token : null;
+        $token = self::probeToken();
 
         return $trust === '1' ? new ProbeAccess(token: $token) : new ProbeAccess([], $token);
     }
