@@ -22,6 +22,6 @@ final class Note extends Model
     #[Id] public private(set) string $id;
     #[Column] public string $body;
 
-    /** UTC, ISO 8601, so it sorts as text. */
+    /** UTC, ISO 8601 to the microsecond, so it sorts as text in the order notes were added. */
     #[Column] public string $createdAt;
 }

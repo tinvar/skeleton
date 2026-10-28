@@ -36,7 +36,9 @@ final class NoteActions
 
         $note = new Note();
         $note->body = $body;
-        $note->createdAt = gmdate('Y-m-d\TH:i:s\Z');
+        // To the microsecond: two notes in one second still list in the
+        // order they were added, which their random ids would not decide.
+        $note->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z');
         $this->orm->save($note);
 
         // The page the browser has open, rendered again through its whole

@@ -19,7 +19,7 @@ return new class extends Migration {
         $schema->create('notes', function (Table $table): void {
             $table->uuid('id')->primary();
             $table->string('body', 500);
-            // UTC, ISO 8601, so it sorts as text.
+            // UTC, ISO 8601 to the microsecond, so it sorts as text.
             $table->string('created_at', 32);
             $table->index(['created_at']);
         });

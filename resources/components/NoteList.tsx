@@ -29,7 +29,7 @@ export async function NoteList({ limit }: { limit: number }) {
               {note.body}
             </Text>
             <Text size="sm" tone="secondary" mono>
-              <time dateTime={note.createdAt}>{note.createdAt.replace('T', ' ').replace('Z', ' UTC')}</time>
+              <time dateTime={note.createdAt}>{`${note.createdAt.slice(0, 16).replace('T', ' ')} UTC`}</time>
             </Text>
           </li>
         ))}
