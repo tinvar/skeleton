@@ -102,3 +102,12 @@ docker compose up -d --build
 
 Put a TLS terminator in front: the cookies are `__Host-`, which browsers
 send over https alone.
+
+## Licence
+
+The skeleton is Tinvar's, under the MIT licence: that is what `LICENSE` and
+`"license": "MIT"` in `composer.json` say. Your app is yours. Replace both
+with your own licence -- or delete `LICENSE` and set
+`"license": "proprietary"` -- before you publish or ship it. The
+framework's packages in `vendor/` and `node_modules/` keep their own MIT
+licences either way.
