@@ -52,6 +52,7 @@ use Tinvar\Observability\DatabaseCheck;
 use Tinvar\Observability\Logger;
 use Tinvar\Observability\Metrics;
 use Tinvar\Observability\ProbeAccess;
+use Tinvar\Observability\ProblemReports;
 use Tinvar\Observability\Probes;
 use Tinvar\Observability\RendererCheck;
 use Tinvar\Observability\RequestId;
@@ -73,6 +74,7 @@ use Tinvar\Render\FragmentToken;
 use Tinvar\Protocol\HeadTag;
 use Tinvar\Render\ModulePreload;
 use Tinvar\Render\RenderChannel;
+use Tinvar\Render\RenderRetry;
 use Tinvar\Render\RendererHealth;
 use Tinvar\Render\RendererUser;
 use Tinvar\Render\RenderResult;
@@ -231,6 +233,10 @@ final class Kernel implements TestableApplication, Terminable
             report: $report,
             tap: $toolbar,
             telemetry: $telemetry,
+            // A render of a GET whose renderer could not be reached, or hung
+            // up before it was done -- a pool restarting under it -- is tried
+            // once more, after 50 ms. Never an action's (ADR 0093).
+            retry: new RenderRetry(),
         );
 
         // The renderers, asked as `renderer:check` asks: for /_ready, and
@@ -276,6 +282,11 @@ final class Kernel implements TestableApplication, Terminable
             telemetry: $telemetry,
             clientTelemetry: $telemetry?->metrics !== null,
             clientAssets: self::buildDirectory() . '/client/assets',
+            // /_reports: the CSP violations and deprecations the browser
+            // reports of its own accord, which every document's policy and
+            // Reporting-Endpoints name (ADR 0093). Sessionless; counted and
+            // logged where there are metrics.
+            problemReports: $telemetry?->metrics !== null,
             probes: $telemetry === null ? null : new Probes(
                 $probeAccess ?? new ProbeAccess(),
                 [new DatabaseCheck($connection), $renderers],
@@ -485,7 +496,11 @@ final class Kernel implements TestableApplication, Terminable
 
         $this->orm->beginRender();
         try {
-            $result = $this->renderRoute($loaded, $request, $sink, $payloadOnly, $nonce);
+            // A retried render starts again from nothing: the body is this
+            // response's alone until it is returned (ADR 0093).
+            $result = $this->renderRoute($loaded, $request, $sink, $payloadOnly, $nonce, static function () use (&$body): void {
+                $body = '';
+            });
         } finally {
             $this->orm->endRender();
         }
@@ -498,9 +513,14 @@ final class Kernel implements TestableApplication, Terminable
             return Response::make(200, $body, ['content-type' => 'text/x-component']);
         }
 
+        // Where problem reports are taken, the policy names the endpoint its
+        // violations go to, and so does Reporting-Endpoints, for those and
+        // for the browser's other reports (ADR 0093).
+        $reports = $this->http->problemReports_ !== null;
         $response = Response::make(200, $body, [
             'content-type' => 'text/html; charset=utf-8',
-            'content-security-policy' => self::contentSecurityPolicy($nonce, $this->dev),
+            'content-security-policy' => self::contentSecurityPolicy($nonce, $this->dev, $reports),
+            ...($reports ? ['reporting-endpoints' => ProblemReports::reportingEndpoints()] : []),
         ]);
         $preload = ModulePreload::header($result);
 
@@ -511,15 +531,21 @@ final class Kernel implements TestableApplication, Terminable
      * The Content-Security-Policy for a document rendered with this nonce:
      * `strict-dynamic` lets a nonced script load the client chunks it
      * imports, and nothing else runs; no plugins, no <base>. In dev, and only
-     * there, eval as well, which React's development build needs.
+     * there, eval as well, which React's development build needs. With
+     * $reports, its violations are reported to /_reports (ADR 0093).
      */
-    public static function contentSecurityPolicy(string $nonce, bool $dev = false): string
+    public static function contentSecurityPolicy(string $nonce, bool $dev = false, bool $reports = false): string
     {
-        return "script-src 'nonce-{$nonce}' 'strict-dynamic'" . ($dev ? " 'unsafe-eval'" : '') . "; object-src 'none'; base-uri 'none'";
+        return "script-src 'nonce-{$nonce}' 'strict-dynamic'" . ($dev ? " 'unsafe-eval'" : '') . "; object-src 'none'; base-uri 'none'"
+            . ($reports ? '; ' . ProblemReports::cspDirectives() : '');
     }
 
-    /** @param \Closure(string): void $sink */
-    private function renderRoute(LoadedRoute $loaded, Request $request, \Closure $sink, bool $payloadOnly, string $nonce): RenderResult
+    /**
+     * @param \Closure(string): void $sink
+     * @param \Closure(): void $rewind takes back what $sink was given, for a
+     *        render tried again after its first byte (RenderChannel::render())
+     */
+    private function renderRoute(LoadedRoute $loaded, Request $request, \Closure $sink, bool $payloadOnly, string $nonce, \Closure $rewind): RenderResult
     {
         $page = $loaded->chain->page;
 
@@ -556,7 +582,17 @@ final class Kernel implements TestableApplication, Terminable
 
         $minter = $request->attribute(HttpKernel::FRAGMENT_MINTER);
 
-        return $this->channel->render($frame, $allowed, $sink, $minter instanceof FragmentMinter ? $minter->closure() : null, $this->http->shared($loaded, $request));
+        return $this->channel->render(
+            $frame,
+            $allowed,
+            $sink,
+            $minter instanceof FragmentMinter ? $minter->closure() : null,
+            $this->http->shared($loaded, $request),
+            // A GET's render may be tried again; an action's re-render, or
+            // anything else, may not (ADR 0093).
+            repeatable: RenderRetry::permits($request),
+            rewind: $rewind,
+        );
     }
 
     /**
@@ -577,6 +613,8 @@ final class Kernel implements TestableApplication, Terminable
                 allowedQueries: $allowed,
             ), $allowed, static function (string $bytes) use (&$body): void {
                 $body .= $bytes;
+            }, repeatable: RenderRetry::permits($request), rewind: static function () use (&$body): void {
+                $body = '';
             });
         } finally {
             $this->orm->endRender();
