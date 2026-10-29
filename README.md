@@ -27,8 +27,14 @@ and runs `npm install --ignore-scripts`. It runs nothing else it fetched.
 
 `bin/dev` is dev mode: Vite's dev server renders the app from source, an
 edit shows in the open page, codegen runs again as the PHP changes, and the
-dev toolbar sits over each page. Loopback only, never in production. To
-serve the build as production does:
+dev toolbar sits over each page. Loopback only, never in production. Started
+with `TINVAR_ENV=local`, it also draws the pages and components in
+`resources/workbench.tsx` on their own, from the samples there, at
+`/_vite/__workbench` and `/_vite/__playground`. `bin/tinvar render --dump
+PATH` prints a page's HTML and RSC payload, and `bin/tinvar mcp` is an MCP
+server for an assistant; both read a build made with `bin/tinvar build
+--profile=test --out=dist-test`, on a copy of the database. To serve the
+build as production does:
 
 ```sh
 npm run build
