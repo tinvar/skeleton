@@ -59,6 +59,7 @@ exit(match ($command) {
     'make:page', 'make:query', 'make:action', 'make:model' => generators($command, \array_slice($argv, 2)),
     'packages:lock' => packagesLock(),
     'audit' => audit(),
+    'render', 'mcp' => devTools($command, \array_slice($argv, 2)),
     'help', '--help', '-h' => help(),
     default => help("Unknown command '{$command}'."),
 });
@@ -106,6 +107,14 @@ function help(string $error = ''): int
       make:model <Name> [--table=notes] [--columns=body:string] [--factory]
                              Write a page, query, action or model, and what each needs; every
                              check they write fails closed until you decide otherwise
+      render --dump PATH [--build=DIR] [--part=html|payload] [--json]
+                             Render one page through the real renderers on a copy of the
+                             database, and print its HTML and RSC payload with cookies and
+                             tokens cut out. Only where TINVAR_ENV is local, development or
+                             testing, through a build made with --profile=test (dist-test/)
+      mcp [--build=DIR]      A Model Context Protocol server on standard input and output:
+                             the app's routes, queries, actions, models and settings (never
+                             a value), the end of its log, and render --dump. Reads only
       packages:lock          Pin each enabled package's version and files in tinvar.lock
       audit                  composer audit and npm audit over the lockfiles (network)
       help                   This message
@@ -432,6 +441,47 @@ function fragments(array $arguments): int
     printf("wrote %s\n", "{$build}/fragments.json");
 
     return 0;
+}
+
+/**
+ * `render --dump` and `mcp`, tinvar/testing's development tools: refused
+ * outside a developer's machine, rendering on a copy of the database
+ * through renderers started on a build made for the test profile, by a
+ * Kernel with a key of its own.
+ *
+ * @param list<string> $arguments
+ */
+function devTools(string $command, array $arguments): int
+{
+    if (!class_exists(Tinvar\Testing\Dev\DevToolsCommand::class)) {
+        fwrite(STDERR, "tinvar {$command} is tinvar/testing's, which is not installed: it is a development tool.\n");
+
+        return 1;
+    }
+
+    $routes = new RouteRegistry();
+    $routes->registerAll(Kernel::ROUTES);
+    $root = realpath(APP_ROOT) ?: APP_ROOT;
+    $tools = new Tinvar\Testing\Dev\DevToolsCommand(
+        app: $root,
+        projectRoot: $root,
+        database: Kernel::databasePath(),
+        application: static function (string $socket, string $database, string $key, ?string $build) use ($routes): Kernel {
+            $deferred = "{$build}/rsc/deferred.json";
+
+            return Kernel::fromEnvironment(
+                $socket,
+                key: $key,
+                database: $database,
+                manifest: $build !== null && is_file($deferred) ? FragmentManifestProducer::produce($routes, $deferred) : new Tinvar\Render\FragmentManifest(),
+            );
+        },
+        models: Kernel::MODELS,
+        configs: Kernel::CONFIGS,
+        log: Kernel::config()->log ?? Kernel::databasePath() . '-app.log',
+    );
+
+    return $command === 'mcp' ? $tools->mcp($arguments) : $tools->render($arguments);
 }
 
 /**
