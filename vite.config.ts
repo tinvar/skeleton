@@ -45,7 +45,14 @@ export default defineConfig(({ command }) => ({
   plugins: [
     styles,
     ...(command === 'serve'
-      ? [react(), workbench({ module: './resources/workbench.tsx', css: compiledCss })]
+      ? [
+          react(),
+          workbench({
+            module: './resources/workbench.tsx',
+            ssr: './resources/workbench.ssr.tsx',
+            css: compiledCss,
+          }),
+        ]
       : []),
     rsc({ clientChunks: clientComponentChunks() }),
     deferredBoundaries(),

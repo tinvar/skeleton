@@ -71,7 +71,7 @@ const FAVICON = `data:image/svg+xml,${encodeURIComponent(favicon.trim())}`;
  * StyleX plugin appends what it compiled to the CSS this module imports.
  * With no theme forced, Meridian follows the OS between light and dark.
  */
-export function Document({ children, frame }: { children: ReactNode; frame: RenderFrame }) {
+function Document({ children, frame }: { children: ReactNode; frame: RenderFrame }) {
   return (
     <html lang="en" {...stylex.props(global.html)}>
       <head>

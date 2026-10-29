@@ -1,7 +1,13 @@
 import type { Workbench } from '@tinvar/renderer/workbench';
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc/server';
+import type { ReactNode } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { global } from '@meridian/ui/tokens';
 import { runInRenderContext } from '@tinvar/react/server';
-import { Document, renderRsc, type RenderFrame } from './entries/rsc';
+import { FormSession } from '@tinvar/react/form';
+import { HeadProvider } from '@tinvar/react/head';
+import { renderRsc, type RenderFrame } from './entries/rsc';
+import './styles/app.css';
 import { NoteList } from './components/NoteList';
 
 /**
@@ -44,21 +50,37 @@ const workbench: Workbench = {
     },
   },
 
-  // Whole, every boundary filled in: the frame runs no script.
+  // A page as the renderer draws it; resources/workbench.ssr.tsx makes the
+  // HTML of it.
   async renderPage(frame, client, mints) {
-    const ssr = await import.meta.viteRsc.loadModule<typeof import('./entries/ssr')>('ssr', 'index');
-    return ssr.prerenderHtml(renderRsc({ ...frame } as RenderFrame, client, mints));
+    return renderRsc({ ...frame } as RenderFrame, client, mints);
   },
 
+  // One component in a document with the app's styles and what its forms
+  // and head tags read.
   async renderElement(element, frame, client, mints) {
-    const document: RenderFrame = { ...frame, route: 'workbench', params: {}, data: { page: null } };
-    const rsc = runInRenderContext(
+    return runInRenderContext(
       { requestId: frame.rid, nonce: frame.nonce, allowed: frame.allow, client, mints },
-      () => renderToReadableStream(<Document frame={document}>{element}</Document>),
+      () => renderToReadableStream(<Frame>{element}</Frame>),
     );
-    const ssr = await import.meta.viteRsc.loadModule<typeof import('./entries/ssr')>('ssr', 'index');
-    return ssr.prerenderHtml(rsc);
   },
 };
+
+function Frame({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" {...stylex.props(global.html)}>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="color-scheme" content="light dark" />
+        {import.meta.viteRsc.loadCss()}
+      </head>
+      <body {...stylex.props(global.body)}>
+        <FormSession csrfToken={null} flash={null}>
+          <HeadProvider defaultTitle="Workbench">{children}</HeadProvider>
+        </FormSession>
+      </body>
+    </html>
+  );
+}
 
 export default workbench;
