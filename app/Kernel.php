@@ -24,6 +24,7 @@ use Tinvar\Cache\QueryCache;
 use Tinvar\Cache\Store;
 use Tinvar\Codec\FrameCodec;
 use Tinvar\Codec\MessagePackCodec;
+use Tinvar\Config\FrameworkConfig;
 use Tinvar\Container\Container;
 use Tinvar\Data\Encoder;
 use Tinvar\Data\SharedReads;
@@ -130,7 +131,7 @@ final class Kernel implements TestableApplication, Terminable
      * The #[Config] classes: loaded at boot, listed by `bin/tinvar config`,
      * and held by `bin/tinvar check`. Add one here when you add a class.
      */
-    public const array CONFIGS = [AppConfig::class];
+    public const array CONFIGS = [AppConfig::class, FrameworkConfig::class];
 
     public readonly Orm $orm;
     public readonly QueryRegistry $queries;
@@ -309,7 +310,7 @@ final class Kernel implements TestableApplication, Terminable
         // First of all: a key missing or malformed stops the process here,
         // every one named, before anything is opened on a guess.
         Configs::loadAll(self::CONFIGS);
-        $dev ??= DevMode::fromEnvironment();
+        $dev ??= FrameworkConfig::load()->devMode();
         $key ??= self::appKey();
         $socketPath ??= self::config()->socket;
         // First, so a renderer user that is no one, root or this process's
@@ -376,11 +377,12 @@ final class Kernel implements TestableApplication, Terminable
      */
     public static function serving(): self
     {
-        $profile = BuildProfile::fromEnvironment();
+        $framework = FrameworkConfig::load();
+        $profile = $framework->buildProfile();
         if ($profile === BuildProfile::TEST) {
             throw new \RuntimeException(BuildProfile::ENV . '=test, and this app serves no browser test endpoint.');
         }
-        if (!DevMode::fromEnvironment()) {
+        if (!$framework->devMode()) {
             BuildProfile::assertBuild($profile, self::buildDirectory());
         }
 
