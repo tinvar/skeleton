@@ -25,7 +25,7 @@ const ROUTES: Record<string, { Page: Page; layouts: readonly 'app'[] }> = {
   'app/error': { Page: ErrorPage as Page, layouts: [] },
 };
 
-type RenderFrame = {
+export type RenderFrame = {
   route: string;
   params: Record<string, string>;
   data: { page: unknown; layouts?: Record<string, unknown> };
@@ -71,7 +71,7 @@ const FAVICON = `data:image/svg+xml,${encodeURIComponent(favicon.trim())}`;
  * StyleX plugin appends what it compiled to the CSS this module imports.
  * With no theme forced, Meridian follows the OS between light and dark.
  */
-function Document({ children, frame }: { children: ReactNode; frame: RenderFrame }) {
+export function Document({ children, frame }: { children: ReactNode; frame: RenderFrame }) {
   return (
     <html lang="en" {...stylex.props(global.html)}>
       <head>

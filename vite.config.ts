@@ -8,6 +8,7 @@ import {
   queryFunctions,
   serializableProps,
 } from '@tinvar/renderer/vite';
+import { workbench } from '@tinvar/renderer/workbench';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
@@ -15,6 +16,12 @@ import { defineConfig } from 'vite';
 // extensions -- so it is bundled into the server builds, where the StyleX
 // compiler sees it, rather than left for Node to load at runtime.
 const bundled = ['@meridian/ui'];
+
+// Kept, for the CSS it has compiled: in dev StyleX hands it to the browser by
+// script, and the workbench's frame runs none.
+const styles = stylex.vite();
+const compiledCss = () =>
+  (styles as unknown as { __stylexCollectCss?: () => string }).__stylexCollectCss?.() ?? '';
 
 // Three environments, as the RSC model requires:
 //   rsc     loads modules under the `react-server` condition and serializes the tree
@@ -31,10 +38,15 @@ export default defineConfig(({ command }) => ({
   // render to. queryFunctions() makes the `@queries` modules codegen types.
   // serializableProps() refuses a build where a server component hands a
   // client component a function. buildProfile() records the profile the
-  // build was made for, which PHP checks before it serves it.
+  // build was made for, which PHP checks before it serves it. workbench(),
+  // in dev alone, draws the pages and components in resources/workbench.tsx
+  // on their own at /_vite/__workbench and /_vite/__playground, where
+  // TINVAR_ENV says local, development or testing.
   plugins: [
-    stylex.vite(),
-    ...(command === 'serve' ? [react()] : []),
+    styles,
+    ...(command === 'serve'
+      ? [react(), workbench({ module: './resources/workbench.tsx', css: compiledCss })]
+      : []),
     rsc({ clientChunks: clientComponentChunks() }),
     deferredBoundaries(),
     queryFunctions(),

@@ -1,5 +1,6 @@
 import { createFromReadableStream, getClientEntryUrl } from '@vitejs/plugin-rsc/ssr';
 import { renderToReadableStream } from 'react-dom/server.edge';
+import { prerender } from 'react-dom/static.edge';
 
 /**
  * RSC stream -> React tree -> HTML, with the client entry as a bootstrap module.
@@ -25,4 +26,18 @@ export async function handleSsr(
       return onError?.(error);
     },
   });
+}
+
+/**
+ * RSC stream -> the whole HTML at once, every Suspense boundary filled in
+ * and no script: for the dev server's workbench, whose frame runs none, so
+ * a boundary streamed in later would stay its fallback.
+ */
+export async function prerenderHtml(rscStream: ReadableStream): Promise<ReadableStream> {
+  const root = await createFromReadableStream<React.ReactNode>(rscStream);
+  // However large: React moves a boundary bigger than this out of line, to
+  // be put in place by a script.
+  const { prelude } = await prerender(root, { progressiveChunkSize: Number.POSITIVE_INFINITY });
+
+  return prelude;
 }
