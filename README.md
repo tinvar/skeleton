@@ -83,8 +83,14 @@ and the lockfiles to `Kernel::packages()`.
 
 ## Settings and secrets
 
-The app reads its settings from the environment; `.env.example` lists them
-with nothing secret filled in. The app key is `TINVAR_APP_KEY`, or the file
+The app reads its settings from the environment, through a typed
+`#[Config]` class, `app/Config/AppConfig.php`: each constructor parameter
+is one variable, parsed to its type at boot, and a key missing or
+malformed stops the server with the variable named, never its value. A
+secret is typed `Tinvar\Config\Secret`, which no dump, log or render shows.
+`bin/tinvar config` lists every key and where its value came from, with
+secrets hidden; `.env.example` lists them with nothing secret filled in.
+The app key is `TINVAR_APP_KEY`, or the file
 `bin/tinvar setup` generated. `/_health`, `/_ready` and `/_metrics` let in
 the probe token alone, as `Authorization: Bearer <token>`: it is
 `TINVAR_PROBE_TOKEN`, or the `.probe-token` file setup generated beside the

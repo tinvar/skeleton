@@ -21,6 +21,7 @@ use Tinvar\Actions\ActionRegistry;
 use Tinvar\Auth\BuildRules;
 use Tinvar\Codegen\RouteTypes;
 use Tinvar\Codegen\TypeScriptGenerator;
+use Tinvar\Config\Configs;
 use Tinvar\Packages\Lockfiles;
 use Tinvar\Packages\PackageLock;
 use Tinvar\Packages\SupplyChain;
@@ -46,6 +47,7 @@ $command = $argv[1] ?? 'help';
 exit(match ($command) {
     'setup' => setup(),
     'check' => check(),
+    'config' => new Tinvar\Server\ConfigCommand(Kernel::CONFIGS)->run(\array_slice($argv, 2)),
     'codegen' => codegen(\array_slice($argv, 2)),
     'serve' => serve(\array_slice($argv, 2)),
     'dev' => dev(\array_slice($argv, 2)),
@@ -74,6 +76,9 @@ function help(string $error = ''): int
                              the database, and npm install with no install scripts
       check                  Run the security model's build rules over the app, and hold its
                              lockfiles to its PackagePolicy (no network)
+      config                 Every key the app's #[Config] classes read, where each value comes
+                             from, and no secret's; exits 1, naming each key, where the server
+                             would refuse to boot
       codegen [--out=DIR] [--check]
                              Write the TypeScript the views use from the PHP; with --check,
                              write nothing and fail if what is there differs
@@ -184,12 +189,16 @@ function check(): int
     $violations = [
         ...RouteRegistry::check(Kernel::ROUTES, new RouteRegistry()),
         ...(new BuildRules(Kernel::MODELS))->check(APP_ENTRY_POINTS, $payloads),
+        // The config classes: final and readonly, never Data, every secret
+        // a Secret, and no variable read twice.
+        ...Configs::check(Kernel::CONFIGS),
     ];
     $supplyChain = (new SupplyChain(APP_ROOT, Kernel::packages()))->check();
     $caddyfile = CaddyfileRules::check(APP_ROOT . '/Caddyfile');
 
     if ($violations === [] && $supplyChain === [] && $caddyfile === []) {
         printf("ok: %d entry points, %d payloads, no violations\n", \count(APP_ENTRY_POINTS), \count($payloads));
+        printf("ok: %d config classes, every secret a Secret\n", \count(Kernel::CONFIGS));
         printf("ok: %s and %s pinned, no undeclared packages\n", Lockfiles::COMPOSER, Lockfiles::NPM);
         echo "ok: Caddyfile holds every PHP response whole and keeps the X-Accel headers from clients\n";
 

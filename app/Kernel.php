@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App;
 
 use App\Actions\NoteActions;
+use App\Config\AppConfig;
 use App\Models\Note;
 use App\Pages\ErrorPage;
 use App\Pages\Home;
@@ -43,6 +44,7 @@ use Tinvar\Http\Terminable;
 use Tinvar\Http\TestableApplication;
 use Tinvar\Http\Throttle;
 use Tinvar\Http\ThrottleStore;
+use Tinvar\Config\Configs;
 use Tinvar\Observability\ApcuMetricsStore;
 use Tinvar\Observability\ArrayMetricsStore;
 use Tinvar\Observability\DatabaseCheck;
@@ -101,9 +103,10 @@ use Tinvar\Support\StandIns;
  * repository) wires the rest -- sign-in and sessions with rows, panels,
  * jobs and mail, live updates, uploads, static pages -- the same way.
  *
- * Its settings come from the environment, never a file in the project:
- * APP_DATABASE, APP_LOG, TINVAR_APP_KEY or TINVAR_APP_KEY_FILE, and the
- * framework's own TINVAR_* (.env.example lists them).
+ * Its settings come from the environment, never a file in the project,
+ * through a typed #[Config] class in CONFIGS -- APP_DATABASE, APP_LOG and
+ * the TINVAR_* it reads are App\Config\AppConfig's -- beside the app key,
+ * TINVAR_APP_KEY or TINVAR_APP_KEY_FILE (.env.example lists them).
  */
 final class Kernel implements TestableApplication, Terminable
 {
@@ -122,6 +125,12 @@ final class Kernel implements TestableApplication, Terminable
 
     /** The models, for the migrations and the generators. */
     public const array MODELS = [Note::class];
+
+    /**
+     * The #[Config] classes: loaded at boot, listed by `bin/tinvar config`,
+     * and held by `bin/tinvar check`. Add one here when you add a class.
+     */
+    public const array CONFIGS = [AppConfig::class];
 
     public readonly Orm $orm;
     public readonly QueryRegistry $queries;
@@ -297,9 +306,12 @@ final class Kernel implements TestableApplication, Terminable
         ?StandIns $standIns = null,
         ?FragmentManifest $manifest = null,
     ): self {
+        // First of all: a key missing or malformed stops the process here,
+        // every one named, before anything is opened on a guess.
+        Configs::loadAll(self::CONFIGS);
         $dev ??= DevMode::fromEnvironment();
         $key ??= self::appKey();
-        $socketPath ??= (string) (getenv('TINVAR_SOCKET') ?: '/tmp/tinvar.sock');
+        $socketPath ??= self::config()->socket;
         // First, so a renderer user that is no one, root or this process's
         // own stops the process here rather than leaving renders to go anywhere.
         $rendererUsers = RendererUser::socketOwners();
@@ -341,7 +353,7 @@ final class Kernel implements TestableApplication, Terminable
             false,
             new CsrfTokens(new Signer($key, CsrfTokens::PURPOSE), $sessionId),
             self::throttleStore($database),
-            self::limitsFrom((string) getenv('TINVAR_THROTTLE')),
+            self::limitsFrom((string) self::config()->throttle),
             new HistoryKeys(new Signer($key, HistoryKeys::PURPOSE), $sessionId),
             $manifest,
             $dev,
@@ -684,12 +696,19 @@ final class Kernel implements TestableApplication, Terminable
         return null;
     }
 
+    /**
+     * The app's settings (app/Config/AppConfig.php), loaded once per worker
+     * and again only when the environment changes -- a test's.
+     */
+    public static function config(): AppConfig
+    {
+        return Configs::load(AppConfig::class);
+    }
+
     /** APP_DATABASE, or database/app.sqlite. */
     public static function databasePath(): string
     {
-        $configured = getenv('APP_DATABASE');
-
-        return \is_string($configured) && $configured !== '' ? $configured : \dirname(__DIR__) . '/database/app.sqlite';
+        return self::config()->database ?? \dirname(__DIR__) . '/database/app.sqlite';
     }
 
     /**
@@ -700,10 +719,10 @@ final class Kernel implements TestableApplication, Terminable
     public static function telemetry(?string $database = null): Telemetry
     {
         $database ??= self::databasePath();
-        $log = getenv('APP_LOG');
+        $log = self::config()->log;
         $memory = $database === ':memory:';
         $logger = new Logger(match (true) {
-            \is_string($log) && $log !== '' => StreamSink::file($log),
+            $log !== null => StreamSink::file($log),
             $memory => StreamSink::stderr(),
             default => StreamSink::file("{$database}-app.log"),
         });
@@ -728,14 +747,9 @@ final class Kernel implements TestableApplication, Terminable
      */
     public static function probeAccess(): ProbeAccess
     {
-        $trust = getenv('TINVAR_PROBE_TRUST_LOOPBACK');
-        $trust = $trust === false || $trust === '' ? '0' : $trust;
-        if ($trust !== '1' && $trust !== '0') {
-            throw new \InvalidArgumentException("TINVAR_PROBE_TRUST_LOOPBACK is 1 or 0; got '{$trust}'.");
-        }
         $token = self::probeToken();
 
-        return $trust === '1' ? new ProbeAccess(token: $token) : new ProbeAccess([], $token);
+        return self::config()->probeTrustLoopback ? new ProbeAccess(token: $token) : new ProbeAccess([], $token);
     }
 
     /**
@@ -766,9 +780,7 @@ final class Kernel implements TestableApplication, Terminable
      */
     public static function build(): string
     {
-        $build = getenv('TINVAR_BUILD');
-
-        return \is_string($build) && $build !== '' ? $build : 'dev';
+        return self::config()->build;
     }
 
     /**
@@ -778,8 +790,8 @@ final class Kernel implements TestableApplication, Terminable
      */
     public static function buildStore(?string $database = null): BuildStore
     {
-        $configured = getenv('TINVAR_BUILDS_FILE');
-        if (\is_string($configured) && $configured !== '') {
+        $configured = self::config()->buildsFile;
+        if ($configured !== null) {
             return new FileBuildStore($configured);
         }
         $database ??= self::databasePath();
@@ -793,9 +805,7 @@ final class Kernel implements TestableApplication, Terminable
     /** The builds this server answers for: its own, and what the store says of the rest. */
     private static function builds(string $database): BuildRegistry
     {
-        $configured = getenv('TINVAR_BUILDS_FILE');
-
-        return $database === ':memory:' && ($configured === false || $configured === '')
+        return $database === ':memory:' && self::config()->buildsFile === null
             ? new BuildRegistry(self::build())
             : BuildRegistry::persisted(self::build(), self::buildStore($database));
     }
@@ -824,8 +834,8 @@ final class Kernel implements TestableApplication, Terminable
      */
     private static function devFragmentManifest(?RouteRegistry $routes = null): FragmentManifest
     {
-        $deferred = getenv('TINVAR_DEFERRED_MANIFEST');
-        if (!\is_string($deferred) || !is_file($deferred)) {
+        $deferred = self::config()->deferredManifest;
+        if ($deferred === null || !is_file($deferred)) {
             return self::fragmentManifest();
         }
         if ($routes === null) {
