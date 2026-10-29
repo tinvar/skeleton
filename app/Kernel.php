@@ -618,7 +618,9 @@ final class Kernel implements TestableApplication, Terminable
      * The application key: TINVAR_APP_KEY, or the key generated into
      * TINVAR_APP_KEY_FILE -- or, by default, into a file of this user's
      * state directory named for this app's directory -- the first time one
-     * is needed.
+     * is needed. Bound to the profile this server serves
+     * (AppKey::application()): a staging server given production's key still
+     * signs with a key of its own.
      *
      * Never in the project. The renderer is sandboxed to what rendering
      * needs, but a key under the project is one a mistake in that sandbox,
@@ -626,7 +628,7 @@ final class Kernel implements TestableApplication, Terminable
      */
     public static function appKey(): string
     {
-        return AppKey::resolve('TINVAR_APP_KEY', self::keyFile());
+        return AppKey::application('TINVAR_APP_KEY', self::keyFile());
     }
 
     /** Where the key is generated when TINVAR_APP_KEY gives none. */
