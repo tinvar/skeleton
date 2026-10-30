@@ -69,9 +69,9 @@ yet, so both say `#[PublicAccess]` and `NotePolicy` lets anyone in: decide
 who may, once it has them.
 
 `bin/tinvar make:page`, `make:query`, `make:action`, `make:model` and
-`make:migration` write the next ones; register each in `app/Kernel.php`,
-and a view in `resources/entries/rsc.tsx`. `bin/tinvar help` lists every
-command.
+`make:migration` write the next ones, and register each in `app/Kernel.php`
+and a page's view in `resources/entries/rsc.tsx`. `bin/tinvar help` lists
+every command.
 
 ## Check it
 
