@@ -68,13 +68,13 @@ exit($console
     // The asset route: the hashed names a build writes alone (ADR 0108).
     ->withCheck('Asset route failed:', static fn (): array => AssetRouteRules::check(APP_ROOT . '/Caddyfile'), "ok: Caddyfile's asset route serves only the names a build writes")
     ->command('setup', 'setup', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm install with no install scripts', static fn (array $arguments): int => setup($console))
-    ->command('render', 'render --dump PATH [--build=DIR] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/)', static fn (array $arguments): int => devTools('render', $arguments))
+    ->command('render', 'render --dump PATH [--build=DIR | --dev] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/), or with --dev through the running `tinvar dev`', static fn (array $arguments): int => devTools('render', $arguments))
     ->command('probe:token', 'probe:token', "Print the token /_health, /_ready and /_metrics take under this environment's profile: bound to it, so under staging not the one TINVAR_PROBE_TOKEN holds", static function (array $arguments): int {
         echo Kernel::probeToken(), "\n";
 
         return 0;
     })
-    ->command('mcp', 'mcp [--build=DIR]', "A Model Context Protocol server on standard input and output: the app's routes, queries, actions, models and settings (never a value), the end of its log, and render --dump. Reads only", static fn (array $arguments): int => devTools('mcp', $arguments))
+    ->command('mcp', 'mcp [--build=DIR | --dev]', "A Model Context Protocol server on standard input and output: the app's routes, queries, actions, models and settings (never a value), the end of its log, and render --dump. Reads only", static fn (array $arguments): int => devTools('mcp', $arguments))
     ->run($argv));
 
 /**
@@ -161,14 +161,17 @@ function devTools(string $command, array $arguments): int
         app: $root,
         projectRoot: $root,
         database: Kernel::databasePath(),
-        application: static function (string $socket, string $database, string $key, ?string $build) use ($routes): Kernel {
-            $deferred = "{$build}/rsc/deferred.json";
+        // Through `tinvar dev` (--dev), $dev is the deferred manifest its dev
+        // server keeps, and the Kernel is built in dev mode, as dev's is.
+        application: static function (string $socket, string $database, string $key, ?string $build, ?string $dev = null) use ($routes): Kernel {
+            $deferred = $dev ?? "{$build}/rsc/deferred.json";
 
             return Kernel::fromEnvironment(
                 $socket,
                 key: $key,
                 database: $database,
-                manifest: $build !== null && is_file($deferred) ? FragmentManifestProducer::produce($routes, $deferred) : new Tinvar\Render\FragmentManifest(),
+                manifest: ($build !== null || $dev !== null) && is_file($deferred) ? FragmentManifestProducer::produce($routes, $deferred) : new Tinvar\Render\FragmentManifest(),
+                dev: $dev !== null,
             );
         },
         models: Kernel::MODELS,
