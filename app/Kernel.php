@@ -126,7 +126,11 @@ final class Kernel implements TestableApplication, Terminable
     /** @var array<class-string, class-string> */
     public const array POLICIES = [Note::class => NotePolicy::class];
 
-    /** The models, for the migrations and the generators. */
+    /**
+     * The models, for the migrations and the generators, and handed to each
+     * registry, which holds every entry point it registers to
+     * tenant-scoped-ids-must-be-typed. Add one here when you add a model.
+     */
     public const array MODELS = [Note::class];
 
     /**
@@ -200,13 +204,13 @@ final class Kernel implements TestableApplication, Terminable
             ->instance(Orm::class, $this->orm)
             ->instance(Throttle::class, $throttle);
 
-        $this->queries = new QueryRegistry($container->resolver());
+        $this->queries = new QueryRegistry($container->resolver(), self::MODELS);
         $this->queries->registerAll(self::QUERIES);
 
-        $this->actions = new ActionRegistry($container->resolver());
+        $this->actions = new ActionRegistry($container->resolver(), self::MODELS);
         $this->actions->registerAll(self::ACTIONS);
 
-        $this->routes = new RouteRegistry();
+        $this->routes = new RouteRegistry(self::MODELS);
         $this->routes->registerAll(self::ROUTES);
 
         $policies = new PolicyRegistry($container->resolver());
