@@ -70,7 +70,7 @@ use Tinvar\Render\FragmentManifest;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Render\FragmentMinter;
 use Tinvar\Render\FragmentToken;
-use Tinvar\Render\HeadTag;
+use Tinvar\Protocol\HeadTag;
 use Tinvar\Render\ModulePreload;
 use Tinvar\Render\RenderChannel;
 use Tinvar\Render\RendererHealth;
