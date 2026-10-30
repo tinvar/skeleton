@@ -8,31 +8,22 @@ declare(strict_types=1);
  *
  *   bin/tinvar help
  *
- * Every command here is a class of the framework's -- serve, dev, the
- * builds, the migrations, the generators, codegen and the check -- handed
- * this app's Kernel, its routes and its directories. Add your own the same
- * way: a function, and a line in the match below.
+ * Tinvar\Console\AppConsole owns the commands every app has -- serve, dev,
+ * the builds, the migrations, the generators, codegen and the check --
+ * handed this app's Kernel, its routes and its directories. Add your own
+ * the same way: `->command('name', 'usage', 'what it does', fn (array $arguments): int => ...)`.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Kernel;
-use Tinvar\Actions\ActionRegistry;
-use Tinvar\Auth\BuildRules;
-use Tinvar\Codegen\RouteTypes;
-use Tinvar\Codegen\TypeScriptGenerator;
-use Tinvar\Config\Configs;
-use Tinvar\Packages\Lockfiles;
-use Tinvar\Packages\PackageLock;
-use Tinvar\Packages\SupplyChain;
+use Tinvar\Codegen\CodegenCommand;
+use Tinvar\Console\AppConsole;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Routing\RouteRegistry;
-use Tinvar\Server\CaddyfileRules;
 
 /** The app's root: where composer.json, package.json and their lockfiles are. */
 const APP_ROOT = __DIR__ . '/..';
-
-const APP_ENTRY_POINTS = [...Kernel::ROUTES, ...Kernel::QUERIES, ...Kernel::ACTIONS];
 
 /**
  * Data classes nothing routable reaches, which codegen and the check would
@@ -42,87 +33,41 @@ const APP_ENTRY_POINTS = [...Kernel::ROUTES, ...Kernel::QUERIES, ...Kernel::ACTI
  */
 const APP_PAYLOADS = [App\Data\ErrorPageData::class];
 
-$command = $argv[1] ?? 'help';
+$console = new AppConsole(
+    root: APP_ROOT,
+    console: __FILE__,
+    namespace: 'App',
+    routes: Kernel::ROUTES,
+    queries: Kernel::QUERIES,
+    actions: Kernel::ACTIONS,
+    models: Kernel::MODELS,
+    configs: Kernel::CONFIGS,
+    packages: Kernel::packages(...),
+    buildStore: Kernel::buildStore(...),
+    database: Kernel::databasePath(...),
+    migrations: App\Database\Migrations::PATH,
+    payloads: APP_PAYLOADS,
+    // tinvar/codegen is a dev dependency: a production install has none.
+    codegen: class_exists(CodegenCommand::class)
+        ? static fn (array $arguments): int => new CodegenCommand(
+            APP_ROOT . '/resources/types',
+            payloads: APP_PAYLOADS,
+            queries: Kernel::QUERIES,
+            routes: Kernel::ROUTES,
+            actions: Kernel::ACTIONS,
+        )->run($arguments)
+        : null,
+    // make:page, make:query, make:action and make:model add what they write
+    // to Kernel::ROUTES, QUERIES, ACTIONS and MODELS, and a page's view to
+    // resources/entries/rsc.tsx.
+    kernel: Kernel::class,
+);
 
-exit(match ($command) {
-    'setup' => setup(),
-    'check' => check(),
-    'config' => new Tinvar\Server\ConfigCommand(Kernel::CONFIGS)->run(\array_slice($argv, 2)),
-    'codegen' => codegen(\array_slice($argv, 2)),
-    'serve' => serve(\array_slice($argv, 2)),
-    'dev' => dev(\array_slice($argv, 2)),
-    'build' => new Tinvar\Server\ProfileBuildCommand(realpath(APP_ROOT) ?: APP_ROOT)->run(\array_slice($argv, 2)),
-    'build:fragments' => fragments(\array_slice($argv, 2)),
-    'build:current', 'build:revoke', 'build:floor', 'build:list', 'build:prune' => new Tinvar\Server\BuildCommand(Kernel::buildStore())->run($command, \array_slice($argv, 2)),
-    'renderer:start', 'renderer:stop', 'renderer:check', 'renderer:restart' => new Tinvar\Server\RendererCommand(realpath(APP_ROOT) ?: APP_ROOT)->run($command, \array_slice($argv, 2)),
-    'migrate', 'migrate:rollback', 'migrate:status', 'migrate:fresh', 'make:migration' => migrations($command, \array_slice($argv, 2)),
-    'make:page', 'make:query', 'make:action', 'make:model' => generators($command, \array_slice($argv, 2)),
-    'packages:lock' => packagesLock(),
-    'audit' => audit(),
-    'render', 'mcp' => devTools($command, \array_slice($argv, 2)),
-    'help', '--help', '-h' => help(),
-    default => help("Unknown command '{$command}'."),
-});
-
-function help(string $error = ''): int
-{
-    if ($error !== '') {
-        fwrite(STDERR, $error . "\n\n");
-    }
-
-    echo <<<TXT
-    bin/tinvar <command>
-
-      setup                  What composer create-project runs once: the app key and probe token, codegen,
-                             the database, and npm install with no install scripts
-      check                  Run the security model's build rules over the app, and hold its
-                             lockfiles to its PackagePolicy (no network)
-      config                 Every key the app's #[Config] classes read, where each value comes
-                             from, and no secret's; exits 1, naming each key, where the server
-                             would refuse to boot
-      codegen [--out=DIR] [--check]
-                             Write the TypeScript the views use from the PHP; with --check,
-                             write nothing and fail if what is there differs
-      serve [--host=HOST] [--port=PORT] [--workers=N] [--renderers=N] [--frankenphp=PATH]
-                             Serve the build with FrankenPHP workers and a pool of renderers
-      dev [--host=HOST] [--port=PORT] [--frankenphp=PATH]
-                             Vite's dev server as the renderer, codegen on every PHP change,
-                             and the dev toolbar, on loopback; never in production
-      build [--profile=production] [--out=DIR]
-                             The Vite build, made for a profile
-      build:fragments [--build=DIR]
-                             Write the fragment manifest -- which routes may defer, and what
-                             each route's renders may query -- from the build and the routes
-      build:current [<id>] | build:revoke <id> | build:floor <id> | build:list | build:prune
-                             The build history: what is released, and what is refused
-      renderer:start | renderer:stop | renderer:check | renderer:restart
-                             The renderer pool, by hand
-      migrate | migrate:rollback [--step=N] | migrate:status | migrate:fresh --force
-                             The migrations in database/migrations, against APP_DATABASE
-      make:migration <name> [--blank]
-                             Write the migration that brings the database to the models
-      make:page <Name> --path=/notes/{note} [--view=app/note]
-      make:query <Name> [--model=Note]
-      make:action <Class> <method> [--model=Note] [--request]
-      make:model <Name> [--table=notes] [--columns=body:string] [--factory]
-                             Write a page, query, action or model, and what each needs; every
-                             check they write fails closed until you decide otherwise
-      render --dump PATH [--build=DIR] [--part=html|payload] [--json]
-                             Render one page through the real renderers on a copy of the
-                             database, and print its HTML and RSC payload with cookies and
-                             tokens cut out. Only where TINVAR_ENV is local, development or
-                             testing, through a build made with --profile=test (dist-test/)
-      mcp [--build=DIR]      A Model Context Protocol server on standard input and output:
-                             the app's routes, queries, actions, models and settings (never
-                             a value), the end of its log, and render --dump. Reads only
-      packages:lock          Pin each enabled package's version and files in tinvar.lock
-      audit                  composer audit and npm audit over the lockfiles (network)
-      help                   This message
-
-    TXT;
-
-    return $error === '' ? 0 : 64;
-}
+exit($console
+    ->command('setup', 'setup', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm install with no install scripts', static fn (array $arguments): int => setup($console))
+    ->command('render', 'render --dump PATH [--build=DIR] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/)', static fn (array $arguments): int => devTools('render', $arguments))
+    ->command('mcp', 'mcp [--build=DIR]', "A Model Context Protocol server on standard input and output: the app's routes, queries, actions, models and settings (never a value), the end of its log, and render --dump. Reads only", static fn (array $arguments): int => devTools('mcp', $arguments))
+    ->run($argv));
 
 /**
  * Once, after composer create-project has installed the app: the key and
@@ -131,7 +76,7 @@ function help(string $error = ''): int
  * runs nothing it fetched: codegen and the migrations are this app's own
  * code and the framework's, which Composer installed.
  */
-function setup(): int
+function setup(AppConsole $console): int
 {
     $root = realpath(APP_ROOT) ?: APP_ROOT;
 
@@ -149,7 +94,7 @@ function setup(): int
     $probe = getenv('TINVAR_PROBE_TOKEN') ? 'TINVAR_PROBE_TOKEN' : Kernel::probeTokenFile();
     echo "probe token: {$probe}\n";
 
-    if (codegen([]) !== 0 || migrations('migrate', []) !== 0) {
+    if ($console->run([__FILE__, 'codegen']) !== 0 || $console->migrate('migrate', []) !== 0) {
         return 1;
     }
 
@@ -181,264 +126,6 @@ function setup(): int
     echo "  npm run build && bin/serve          # or the build, as production serves it\n";
     echo "  vendor/bin/pest && npx vitest run   # the tests\n\n";
     echo "Both serve with FrankenPHP: put its binary at tools/frankenphp, set TINVAR_FRANKENPHP, or have it on your PATH.\n";
-
-    return 0;
-}
-
-/**
- * The build rules over every entry point and payload the app declares, and
- * the supply chain: composer.lock and package-lock.json pinned and held to
- * Kernel::packages(), and any Dockerfile's images pinned by digest; and the
- * Caddyfile, which must hold each response whole around `php` and keep the
- * X-Accel headers from the client (Tinvar\Server\CaddyfileRules).
- */
-function check(): int
-{
-    $payloads = array_values(array_unique([...APP_PAYLOADS, ...BuildRules::payloadsTakenBy(APP_ENTRY_POINTS)]));
-    $violations = [
-        ...RouteRegistry::check(Kernel::ROUTES, new RouteRegistry()),
-        ...(new BuildRules(Kernel::MODELS))->check(APP_ENTRY_POINTS, $payloads),
-        // The config classes: final and readonly, never Data, every secret
-        // a Secret, and no variable read twice.
-        ...Configs::check(Kernel::CONFIGS),
-    ];
-    $supplyChain = (new SupplyChain(APP_ROOT, Kernel::packages()))->check();
-    $caddyfile = CaddyfileRules::check(APP_ROOT . '/Caddyfile');
-
-    if ($violations === [] && $supplyChain === [] && $caddyfile === []) {
-        printf("ok: %d entry points, %d payloads, no violations\n", \count(APP_ENTRY_POINTS), \count($payloads));
-        printf("ok: %d config classes, every secret a Secret\n", \count(Kernel::CONFIGS));
-        printf("ok: %s and %s pinned, no undeclared packages\n", Lockfiles::COMPOSER, Lockfiles::NPM);
-        echo "ok: Caddyfile holds every PHP response whole and keeps the X-Accel headers from clients\n";
-
-        return 0;
-    }
-
-    foreach (['Build rules failed:' => $violations, 'Supply chain failed:' => $supplyChain, 'Caddyfile failed:' => $caddyfile] as $heading => $lines) {
-        if ($lines !== []) {
-            fwrite(STDERR, $heading . "\n  " . implode("\n  ", $lines) . "\n");
-        }
-    }
-
-    return 1;
-}
-
-/**
- * resources/types: generated.ts (Data classes, PageProps, a typed route()
- * helper), modules.d.ts (the @queries functions), queries.json (which query
- * each calls, which the build reads), actions/*.ts (one module of action
- * references per class), and testing/ (the mocks and fakes component tests
- * run against). With --check it writes nothing, and fails when what is on
- * disk is not what the PHP generates now.
- *
- * @param list<string> $arguments
- */
-function codegen(array $arguments): int
-{
-    $out = APP_ROOT . '/resources/types';
-    $check = false;
-    foreach ($arguments as $argument) {
-        if (str_starts_with($argument, '--out=')) {
-            $out = rtrim(substr($argument, 6), '/');
-        } elseif ($argument === '--check') {
-            $check = true;
-        } else {
-            fwrite(STDERR, "Unknown argument '{$argument}'. Usage: tinvar codegen [--out=DIR] [--check]\n");
-
-            return 64;
-        }
-    }
-    if (!class_exists(TypeScriptGenerator::class)) {
-        fwrite(STDERR, "tinvar/codegen is not installed: it is a dev dependency, which this install left out.\n");
-
-        return 1;
-    }
-
-    $routes = new RouteRegistry();
-    $routes->registerAll(Kernel::ROUTES);
-    $actions = new ActionRegistry();
-    $actions->registerAll(Kernel::ACTIONS);
-
-    $files = (new TypeScriptGenerator())->files(
-        dataClasses: APP_PAYLOADS,
-        queryClasses: Kernel::QUERIES,
-        routes: array_map(RouteTypes::of(...), [...$routes->layouts(), ...$routes->pages()]),
-        actions: $actions->all(),
-    );
-
-    $written = ['generated.ts' => $files['module'], 'modules.d.ts' => $files['ambient'], 'queries.json' => $files['queries']];
-    foreach ($files['actions'] as $class => $contents) {
-        $written["actions/{$class}.ts"] = $contents;
-    }
-    foreach ($files['testing'] as $path => $contents) {
-        $written["testing/{$path}"] = $contents;
-    }
-
-    // What was generated before and is not now: a class with no actions
-    // left, a query module gone. Under testing/, only a file codegen wrote.
-    $stale = array_values(array_filter(
-        [...(glob("{$out}/actions/*.ts") ?: []), ...array_filter(generatedUnder("{$out}/testing"), writtenByCodegen(...))],
-        static fn (string $file): bool => !isset($written[substr($file, \strlen($out) + 1)]),
-    ));
-
-    if ($check) {
-        $drift = [];
-        foreach ($written as $name => $contents) {
-            $path = "{$out}/{$name}";
-            if (!is_file($path) || file_get_contents($path) !== $contents) {
-                $drift[] = is_file($path) ? "{$name} is out of date" : "{$name} is missing";
-            }
-        }
-        foreach ($stale as $file) {
-            $drift[] = substr($file, \strlen($out) + 1) . ' is generated from nothing now';
-        }
-        if ($drift === []) {
-            echo "The generated TypeScript matches the PHP signatures.\n";
-
-            return 0;
-        }
-        fwrite(STDERR, "The generated TypeScript has drifted from the PHP; run bin/tinvar codegen:\n  " . implode("\n  ", $drift) . "\n");
-
-        return 1;
-    }
-
-    foreach ($stale as $file) {
-        unlink($file);
-        printf("removed %s\n", $file);
-    }
-    foreach ($written as $name => $contents) {
-        $path = "{$out}/{$name}";
-        if (!is_dir(\dirname($path))) {
-            mkdir(\dirname($path), 0o755, true);
-        }
-        // Only what changed: dev mode runs this on every save, and a file
-        // rewritten as it was is one Vite reloads for nothing.
-        if (!is_file($path) || file_get_contents($path) !== $contents) {
-            file_put_contents($path, $contents);
-            printf("wrote %s\n", $name);
-        }
-    }
-
-    return 0;
-}
-
-/** Whether codegen wrote a file: its header, on the first or second line. Never a link. */
-function writtenByCodegen(string $file): bool
-{
-    if (is_link($file)) {
-        return false;
-    }
-    $handle = @fopen($file, 'r');
-    if ($handle === false) {
-        return false;
-    }
-    $lines = [fgets($handle), fgets($handle)];
-    fclose($handle);
-    foreach ($lines as $line) {
-        if (\is_string($line) && rtrim($line, "\r\n") === '// Generated by tinvar codegen. Do not edit.') {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/** @return list<string> every .ts file under $directory, at any depth */
-function generatedUnder(string $directory): array
-{
-    if (!is_dir($directory)) {
-        return [];
-    }
-    $files = [];
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
-        if ($file instanceof SplFileInfo && $file->isFile() && str_ends_with($file->getFilename(), '.ts')) {
-            $files[] = $file->getPathname();
-        }
-    }
-    sort($files);
-
-    return $files;
-}
-
-/**
- * The renderers and FrankenPHP, together; see Tinvar\Server\ServeCommand.
- * This app has no queue or schedule, so --worker and --schedule are refused.
- *
- * @param list<string> $arguments
- */
-function serve(array $arguments): int
-{
-    $root = realpath(APP_ROOT) ?: APP_ROOT;
-    $app = null;
-    foreach ($arguments as $argument) {
-        if (str_starts_with($argument, '--app=')) {
-            $app = realpath(substr($argument, 6));
-        }
-    }
-    // This app, and no other: what dev passes on, or nothing.
-    if ($app === null) {
-        $arguments[] = "--app={$root}";
-    } elseif ($app !== $root) {
-        fwrite(STDERR, "bin/tinvar serves the app it is in, {$root}, and no other.\n");
-
-        return 64;
-    }
-
-    return new Tinvar\Server\ServeCommand($root)->run($arguments);
-}
-
-/**
- * `serve --dev`, supervised, with codegen on every change to app/ and the
- * dev toolbar; see Tinvar\Server\DevCommand.
- *
- * @param list<string> $arguments
- */
-function dev(array $arguments): int
-{
-    $root = realpath(APP_ROOT) ?: APP_ROOT;
-
-    return new Tinvar\Server\DevCommand(
-        console: __FILE__,
-        watch: ["{$root}/app"],
-        codegen: static fn (string $app): array => [...Tinvar\Server\PhpCommand::prefix(), __FILE__, 'codegen', "--out={$app}/resources/types"],
-        workingDirectory: $root,
-    )->run($arguments);
-}
-
-/**
- * The fragment manifest, from the build's deferred.json and the routes;
- * part of `npm run build`, after Vite.
- *
- * @param list<string> $arguments
- */
-function fragments(array $arguments): int
-{
-    $build = Kernel::buildDirectory();
-    foreach ($arguments as $argument) {
-        if (!str_starts_with($argument, '--build=')) {
-            fwrite(STDERR, "Unknown argument '{$argument}'. Usage: tinvar build:fragments [--build=DIR]\n");
-
-            return 64;
-        }
-        $build = rtrim(substr($argument, 8), '/');
-    }
-
-    $routes = new RouteRegistry();
-    $routes->registerAll(Kernel::ROUTES);
-
-    try {
-        $manifest = FragmentManifestProducer::produce($routes, "{$build}/rsc/deferred.json");
-        $manifest->write("{$build}/fragments.json");
-    } catch (RuntimeException $e) {
-        fwrite(STDERR, $e->getMessage() . "\n");
-
-        return 1;
-    }
-
-    foreach ($manifest->toArray()['queries'] as $route => $queries) {
-        printf("queries %s (%s)\n", $route, $queries === [] ? 'none' : implode(', ', $queries));
-    }
-    printf("wrote %s\n", "{$build}/fragments.json");
 
     return 0;
 }
@@ -482,82 +169,4 @@ function devTools(string $command, array $arguments): int
     );
 
     return $command === 'mcp' ? $tools->mcp($arguments) : $tools->render($arguments);
-}
-
-/**
- * The migrations, against APP_DATABASE or database/app.sqlite (or
- * --database=PATH). migrate and migrate:fresh create the file when it is
- * missing; the rest refuse a missing one.
- *
- * @param list<string> $arguments
- */
-function migrations(string $command, array $arguments): int
-{
-    $database = Kernel::databasePath();
-    $rest = [];
-    foreach ($arguments as $argument) {
-        if (str_starts_with($argument, '--database=')) {
-            $database = substr($argument, 11);
-        } else {
-            $rest[] = $argument;
-        }
-    }
-
-    return new Tinvar\Orm\Migrations\MigrateCommand(
-        static fn (bool $create): Tinvar\Orm\Connection => $create || is_file($database)
-            ? Tinvar\Orm\PdoConnection::sqlite($database, 'app', create: $create)
-            : throw new Tinvar\Orm\Migrations\MigrationRefused("No database at {$database}; `bin/tinvar migrate` makes one."),
-        App\Database\Migrations::PATH,
-        Kernel::MODELS,
-    )->run($command, $rest);
-}
-
-/**
- * The generators, writing where composer.json's psr-4 says App\ loads from,
- * and the views beside the others.
- *
- * @param list<string> $arguments
- */
-function generators(string $command, array $arguments): int
-{
-    try {
-        $layout = Tinvar\Generators\AppLayout::fromComposer(APP_ROOT, 'App', pages: APP_ROOT . '/resources/pages', types: APP_ROOT . '/resources/types');
-    } catch (Tinvar\Generators\GenerationRefused $e) {
-        fwrite(STDERR, $e->getMessage() . "\n");
-
-        return Tinvar\Generators\MakeCommand::FAILED;
-    }
-
-    return new Tinvar\Generators\MakeCommand($layout, Kernel::MODELS)->run($command, $arguments);
-}
-
-/** tinvar.lock, written from what is installed for each package the policy enables. */
-function packagesLock(): int
-{
-    try {
-        $lockfiles = new Lockfiles(APP_ROOT);
-        $lock = PackageLock::of(Kernel::packages(), [...$lockfiles->composer(), ...$lockfiles->npm()]);
-        $lock->write(APP_ROOT);
-    } catch (RuntimeException $e) {
-        fwrite(STDERR, $e->getMessage() . "\n");
-
-        return 1;
-    }
-    printf("Wrote %s: %d package(s) pinned.\n", PackageLock::FILE, \count($lock->entries));
-
-    return 0;
-}
-
-/** The advisory databases' view of both lockfiles. Needs the network. */
-function audit(): int
-{
-    $status = 0;
-    foreach ([['composer', 'audit', '--locked', '--no-interaction'], ['npm', 'audit', '--audit-level=moderate']] as $command) {
-        echo '$ ' . implode(' ', $command) . "\n";
-        $process = proc_open($command, [STDIN, STDOUT, STDERR], $pipes, APP_ROOT);
-        $code = \is_resource($process) ? proc_close($process) : 127;
-        $status = $status === 0 ? $code : $status;
-    }
-
-    return $status === 0 ? 0 : 1;
 }
