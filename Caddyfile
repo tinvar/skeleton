@@ -42,10 +42,12 @@ http://:{$TINVAR_PORT:8080} {
 	bind {$TINVAR_HOST:127.0.0.1}
 
 	# Built assets: hashed names, so a file at a name never changes and can be
-	# cached for a year. Only /assets/ -- nothing else under dist/client is
-	# meant to be served. Unset -- started by anything but `tinvar serve` --
-	# is nowhere, and every asset a 404, rather than a directory under the root.
-	@assets path /assets/*
+	# cached for a year. Only a name a build writes under /assets/, as PHP
+	# serves them -- nothing else under dist/client is meant to be served, and
+	# `tinvar check` holds the pattern to PHP's (ADR 0108). Unset -- started by
+	# anything but `tinvar serve` -- is nowhere, and every asset a 404, rather
+	# than a directory under the root.
+	@assets path_regexp "^/assets/[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}-[A-Za-z0-9_-]{8,32}\.(js|css|woff2|woff|png|jpg|webp|avif|gif|svg|wasm)$"
 	handle @assets {
 		root * {$TINVAR_BUILD_DIR:/nonexistent/tinvar-build}/client
 		header Cache-Control "public, max-age=31536000, immutable"
