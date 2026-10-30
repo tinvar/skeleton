@@ -58,6 +58,7 @@ use Tinvar\Observability\ProbeAccess;
 use Tinvar\Observability\ProblemReports;
 use Tinvar\Observability\Probes;
 use Tinvar\Observability\RendererCheck;
+use Tinvar\Observability\RendererLines;
 use Tinvar\Observability\RequestId;
 use Tinvar\Observability\SqliteMetricsStore;
 use Tinvar\Observability\StreamSink;
@@ -773,6 +774,24 @@ final class Kernel implements TestableApplication, Terminable
         return self::config()->database ?? \dirname(__DIR__) . '/database/app.sqlite';
     }
 
+    /** Where the app's log lines go: APP_LOG, or a file beside the database. */
+    private static function logSink(string $database): StreamSink
+    {
+        $log = self::config()->log;
+
+        return match (true) {
+            $log !== null => StreamSink::file($log),
+            $database === ':memory:' => StreamSink::stderr(),
+            default => StreamSink::file("{$database}-app.log"),
+        };
+    }
+
+    /** The app's log, which `serve` writes the renderers' lines to as well. */
+    public static function rendererLog(): RendererLines
+    {
+        return new RendererLines(self::logSink(self::databasePath()));
+    }
+
     /**
      * The app's telemetry: JSON log lines in APP_LOG or a file beside the
      * database, metrics in APCu where the server has it loaded and otherwise
@@ -782,13 +801,8 @@ final class Kernel implements TestableApplication, Terminable
     public static function telemetry(?string $database = null): Telemetry
     {
         $database ??= self::databasePath();
-        $log = self::config()->log;
         $memory = $database === ':memory:';
-        $logger = new Logger(match (true) {
-            $log !== null => StreamSink::file($log),
-            $memory => StreamSink::stderr(),
-            default => StreamSink::file("{$database}-app.log"),
-        });
+        $logger = new Logger(self::logSink($database));
 
         // The queue worker and the scheduler count into the file, whatever
         // APCu they have, and the server reads it beside its own.

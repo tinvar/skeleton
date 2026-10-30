@@ -62,6 +62,8 @@ $console = new AppConsole(
     // to Kernel::ROUTES, QUERIES, ACTIONS and MODELS, and a page's view to
     // resources/entries/rsc.tsx.
     kernel: Kernel::class,
+    // `serve` writes the renderers' lines into the app's log as well.
+    rendererLog: Kernel::rendererLog(...),
 );
 
 exit($console
