@@ -775,8 +775,9 @@ final class Kernel implements TestableApplication, Terminable
 
     /**
      * The app's telemetry: JSON log lines in APP_LOG or a file beside the
-     * database, metrics in APCu where it is loaded and otherwise a SQLite
-     * file beside the database. None of it reaches the renderer.
+     * database, metrics in APCu where the server has it loaded and otherwise
+     * a SQLite file beside the database, which the CLI's processes always
+     * count into. None of it reaches the renderer.
      */
     public static function telemetry(?string $database = null): Telemetry
     {
@@ -789,10 +790,13 @@ final class Kernel implements TestableApplication, Terminable
             default => StreamSink::file("{$database}-app.log"),
         });
 
+        // The queue worker and the scheduler count into the file, whatever
+        // APCu they have, and the server reads it beside its own.
+        $shared = $memory ? null : new SqliteMetricsStore("{$database}-metrics");
         $metrics = match (true) {
-            ApcuMetricsStore::available() => new Metrics(new ApcuMetricsStore('app:metrics:')),
-            $memory => new Metrics(new ArrayMetricsStore()),
-            default => new Metrics(new SqliteMetricsStore("{$database}-metrics"), flushEvery: 1.0),
+            PHP_SAPI !== 'cli' && ApcuMetricsStore::available() => new Metrics(new ApcuMetricsStore('app:metrics:'), readAlso: $shared === null ? [] : [$shared]),
+            $shared === null => new Metrics(new ArrayMetricsStore()),
+            default => new Metrics($shared, flushEvery: 1.0),
         };
 
         return new Telemetry($logger, $metrics);
