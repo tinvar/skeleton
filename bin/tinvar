@@ -69,6 +69,8 @@ $console = new AppConsole(
 exit($console
     // The asset route: the hashed names a build writes alone (ADR 0108).
     ->withCheck('Asset route failed:', static fn (): array => AssetRouteRules::check(APP_ROOT . '/Caddyfile'), "ok: Caddyfile's asset route serves only the names a build writes")
+    // The public keys node agents and a console edge verify with (ADR 0119).
+    ->withGatewayKeys(Kernel::appKey(...))
     ->command('setup', 'setup', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm install with no install scripts', static fn (array $arguments): int => setup($console))
     ->command('render', 'render --dump PATH [--build=DIR | --dev] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/), or with --dev through the running `tinvar dev`', static fn (array $arguments): int => devTools('render', $arguments))
     ->command('probe:token', 'probe:token', "Print the token /_health, /_ready and /_metrics take under this environment's profile: bound to it, so under staging not the one TINVAR_PROBE_TOKEN holds", static function (array $arguments): int {
