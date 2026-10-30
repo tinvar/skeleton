@@ -20,7 +20,6 @@ export function NoteForm() {
 
   return (
     <Form
-      action={add}
       resetOnSuccess
       onStart={() => setFailed(null)}
       onHttpException={(failure) =>
@@ -36,6 +35,7 @@ export function NoteForm() {
         )
       }
       {...stylex.props(styles.form)}
+      action={add}
     >
       {(form) => (
         <>
