@@ -193,7 +193,10 @@ EXPOSE 8080
 # As nobody, over loopback, with the probe token: the renderers share this
 # container's loopback, so it is not trusted without one
 # (TINVAR_PROBE_TRUST_LOOPBACK=0 above), and the entrypoint refuses to serve
-# with none given.
+# with none given. Each process's check on its own line -- PHP's /_health,
+# the renderers as their own user, then /_ready -- so a failure says whose
+# it was; a platform that probes apart runs `healthcheck php renderers` for
+# liveness and `healthcheck ready` for readiness (ADR 0129).
 HEALTHCHECK --interval=15s --timeout=6s --start-period=60s --retries=3 \
     CMD ["/usr/local/lib/tinvar/healthcheck"]
 
