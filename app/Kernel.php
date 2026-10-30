@@ -587,6 +587,10 @@ final class Kernel implements TestableApplication, Terminable
                 routeToken: self::stringOrNull($request->attribute(HttpKernel::ROUTE_TOKEN)),
                 view: $page->view,
                 historyKey: self::stringOrNull($request->attribute(HttpKernel::HISTORY_KEY)),
+                // What its vitals and errors are filed under, with no route
+                // token to read it from -- a static page, an unnamed one
+                // (ADR 0129): its name, or its view.
+                route: $page->name ?? $page->view,
             ),
             segments: $loaded->segments,
             // For the page's forms: the token their hidden field posts
