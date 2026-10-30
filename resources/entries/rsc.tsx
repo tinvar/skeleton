@@ -158,6 +158,16 @@ export async function renderHtml(
   return { htmlStream, rscStream: forPayload };
 }
 
+/**
+ * What the renderer runs before it takes its first render: the ssr
+ * environment, and every client component's module in it (ADR 0109).
+ */
+export async function warm() {
+  const ssr = await import.meta.viteRsc.loadModule<typeof import('./ssr')>('ssr', 'index');
+
+  return ssr.warm();
+}
+
 // The plugin's convention; unused by the socket path, kept so `vite build`
 // treats this as a valid rsc entry.
 export default async function handler(): Promise<Response> {
