@@ -30,7 +30,9 @@ use Tinvar\Data\Encoder;
 use Tinvar\Data\SharedReads;
 use Tinvar\Dev\DevToolbar;
 use Tinvar\Http\ApcuThrottleStore;
+use Tinvar\Http\AssetLinks;
 use Tinvar\Http\BuildRegistry;
+use Tinvar\Http\BuiltAssets;
 use Tinvar\Http\BuildStore;
 use Tinvar\Http\CsrfTokens;
 use Tinvar\Http\ErrorShell;
@@ -40,6 +42,7 @@ use Tinvar\Http\HistoryKeys;
 use Tinvar\Http\Kernel as HttpKernel;
 use Tinvar\Http\Request;
 use Tinvar\Http\Response;
+use Tinvar\Http\Sapi;
 use Tinvar\Http\SqliteThrottleStore;
 use Tinvar\Http\Terminable;
 use Tinvar\Http\TestableApplication;
@@ -498,6 +501,17 @@ final class Kernel implements TestableApplication, Terminable
         // every script, and the header refuses a script without it.
         $nonce = base64_encode(random_bytes(16));
 
+        // A document's first loads -- the stylesheets every page links, the
+        // client entry -- hinted before it renders, with their digests where
+        // the build has them: a 103 under FrankenPHP, nothing elsewhere
+        // (ADR 0108).
+        if (!$payloadOnly && !$this->dev) {
+            $hints = self::assetLinks()->earlyHints();
+            if ($hints !== null) {
+                Sapi::earlyHints($hints);
+            }
+        }
+
         $this->orm->beginRender();
         try {
             // A retried render starts again from nothing: the body is this
@@ -526,7 +540,7 @@ final class Kernel implements TestableApplication, Terminable
             'content-security-policy' => self::contentSecurityPolicy($nonce, $this->dev, $reports),
             ...($reports ? ['reporting-endpoints' => ProblemReports::reportingEndpoints()] : []),
         ]);
-        $preload = ModulePreload::header($result);
+        $preload = ModulePreload::header($result, assets: self::assetLinks());
 
         return $preload === null ? $response : $response->withHeader('link', $preload);
     }
@@ -854,6 +868,17 @@ final class Kernel implements TestableApplication, Terminable
         return $database === ':memory:' && self::config()->buildsFile === null
             ? new BuildRegistry(self::build())
             : BuildRegistry::persisted(self::build(), self::buildStore($database));
+    }
+
+    /**
+     * What the build lets a Link header name, and each asset's digest where
+     * the build has them: read once a process (ADR 0108).
+     */
+    public static function assetLinks(): AssetLinks
+    {
+        static $links = null;
+
+        return $links ??= AssetLinks::fromBuild(new BuiltAssets(self::buildDirectory()));
     }
 
     /** The build: dist/, or the directory TINVAR_BUILD_DIR names. */
