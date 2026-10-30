@@ -713,10 +713,12 @@ final class Kernel implements TestableApplication, Terminable
      * or the one generated into TINVAR_PROBE_TOKEN_FILE -- or, by default,
      * into this user's state directory beside the app key -- the first time
      * one is needed. `bin/tinvar setup` makes it, and says where it is.
+     * Bound to the profile as the app key is (AppKey::secret(), ADR 0102):
+     * under staging a probe sends the token `bin/tinvar probe:token` prints.
      */
     public static function probeToken(): string
     {
-        return AppKey::resolve('TINVAR_PROBE_TOKEN', self::probeTokenFile());
+        return AppKey::secret('TINVAR_PROBE_TOKEN', self::probeTokenFile());
     }
 
     /** Where the probe token is generated when TINVAR_PROBE_TOKEN gives none. */

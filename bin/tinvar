@@ -69,6 +69,11 @@ exit($console
     ->withCheck('Asset route failed:', static fn (): array => AssetRouteRules::check(APP_ROOT . '/Caddyfile'), "ok: Caddyfile's asset route serves only the names a build writes")
     ->command('setup', 'setup', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm install with no install scripts', static fn (array $arguments): int => setup($console))
     ->command('render', 'render --dump PATH [--build=DIR] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/)', static fn (array $arguments): int => devTools('render', $arguments))
+    ->command('probe:token', 'probe:token', "Print the token /_health, /_ready and /_metrics take under this environment's profile: bound to it, so under staging not the one TINVAR_PROBE_TOKEN holds", static function (array $arguments): int {
+        echo Kernel::probeToken(), "\n";
+
+        return 0;
+    })
     ->command('mcp', 'mcp [--build=DIR]', "A Model Context Protocol server on standard input and output: the app's routes, queries, actions, models and settings (never a value), the end of its log, and render --dump. Reads only", static fn (array $arguments): int => devTools('mcp', $arguments))
     ->run($argv));
 
