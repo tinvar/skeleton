@@ -15,11 +15,15 @@ export async function handleSsr(
   rscStream: ReadableStream,
   nonce: string,
   onError?: (error: unknown) => string | void,
+  signal?: AbortSignal,
 ): Promise<ReadableStream> {
   const root = await createFromReadableStream<React.ReactNode>(rscStream);
 
   return renderToReadableStream(root, {
     nonce,
+    // Fired when PHP has gone: React stops the render rather than finishing
+    // a page no one will read.
+    ...(signal ? { signal } : {}),
     bootstrapModules: [getClientEntryUrl()],
     // The digest PHP logged the failure under, which React hands the
     // browser with the boundary it could not render here.

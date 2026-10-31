@@ -118,10 +118,11 @@ export function renderRsc(
   client: QueryClientLike,
   mints?: MintClientLike,
   onError?: (error: unknown) => string | void,
+  signal?: AbortSignal,
 ): ReadableStream<Uint8Array> {
   return runInRenderContext(
     { requestId: frame.rid, nonce: frame.nonce, allowed: frame.allow, client, ...(mints ? { mints } : {}) },
-    () => renderToReadableStream(buildTree(frame), { onError }),
+    () => renderToReadableStream(buildTree(frame), { onError, ...(signal ? { signal } : {}) }),
   );
 }
 
@@ -130,6 +131,7 @@ export function renderFragment(
   frame: FragmentFrame,
   client: QueryClientLike,
   onError?: (error: unknown) => string | void,
+  signal?: AbortSignal,
 ): ReadableStream<Uint8Array> {
   const element = (token: FragmentToken, key?: number) => {
     // Its own entries only: a name like `constructor` finds nothing here.
@@ -140,7 +142,7 @@ export function renderFragment(
   const root = frame.tokens ? frame.tokens.map(element) : element(frame.token as FragmentToken);
 
   return runInRenderContext({ requestId: frame.rid, nonce: frame.nonce, allowed: frame.allow, client }, () =>
-    renderToReadableStream(root, { onError }),
+    renderToReadableStream(root, { onError, ...(signal ? { signal } : {}) }),
   );
 }
 
@@ -150,10 +152,11 @@ export async function renderHtml(
   client: QueryClientLike,
   onError?: (error: unknown) => string | void,
   mints?: MintClientLike,
+  signal?: AbortSignal,
 ) {
-  const [forSsr, forPayload] = renderRsc(frame, client, mints, onError).tee();
+  const [forSsr, forPayload] = renderRsc(frame, client, mints, onError, signal).tee();
   const ssr = await import.meta.viteRsc.loadModule<typeof import('./ssr')>('ssr', 'index');
-  const htmlStream = await ssr.handleSsr(forSsr, frame.nonce, onError);
+  const htmlStream = await ssr.handleSsr(forSsr, frame.nonce, onError, signal);
 
   return { htmlStream, rscStream: forPayload };
 }
