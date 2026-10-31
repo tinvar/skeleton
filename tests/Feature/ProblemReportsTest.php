@@ -56,3 +56,9 @@ it('names /_reports in a document\'s policy only where it takes them', function 
     expect(Kernel::contentSecurityPolicy('bm9uY2U=', reports: true))->toContain('report-uri /_reports; report-to default')
         ->and(Kernel::contentSecurityPolicy('bm9uY2U='))->not->toContain('report');
 });
+
+// No page framed, and `tinvar check` holds the policy to saying so.
+it('refuses every frame in a document\'s policy', function () {
+    expect(Kernel::contentSecurityPolicy('bm9uY2U='))->toContain("frame-ancestors 'none'")
+        ->and(Tinvar\Http\ContentSecurityPolicyRules::check(Kernel::contentSecurityPolicy('bm9uY2U=')))->toBe([]);
+});

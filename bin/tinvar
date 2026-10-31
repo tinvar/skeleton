@@ -19,6 +19,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use App\Kernel;
 use Tinvar\Codegen\CodegenCommand;
 use Tinvar\Console\AppConsole;
+use Tinvar\Http\ContentSecurityPolicyRules;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Routing\RouteRegistry;
 use Tinvar\Server\AssetRouteRules;
@@ -68,6 +69,8 @@ $console = new AppConsole(
 
 exit($console
     // The asset route: the hashed names a build writes alone (ADR 0108).
+    // Who may frame a page: the document policy must say.
+    ->withCheck('Content-Security-Policy failed:', static fn (): array => ContentSecurityPolicyRules::check(Kernel::contentSecurityPolicy('check')), "ok: the document policy says who may frame a page")
     ->withCheck('Asset route failed:', static fn (): array => AssetRouteRules::check(APP_ROOT . '/Caddyfile'), "ok: Caddyfile's asset route serves only the names a build writes")
     // The public keys node agents and a console edge verify with (ADR 0119).
     ->withGatewayKeys(Kernel::appKey(...))

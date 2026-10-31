@@ -548,6 +548,7 @@ final class Kernel implements TestableApplication, Terminable
         $response = Response::make(200, $body, [
             'content-type' => 'text/html; charset=utf-8',
             'content-security-policy' => self::contentSecurityPolicy($nonce, $this->dev, $reports),
+            'x-frame-options' => 'DENY',
             ...($reports ? ['reporting-endpoints' => ProblemReports::reportingEndpoints()] : []),
         ]);
         $preload = ModulePreload::header($result, assets: self::assetLinks());
@@ -561,10 +562,17 @@ final class Kernel implements TestableApplication, Terminable
      * imports, and nothing else runs; no plugins, no <base>. In dev, and only
      * there, eval as well, which React's development build needs. With
      * $reports, its violations are reported to /_reports (ADR 0093).
+     *
+     * And no page framed, by another origin or by the app itself: a page in
+     * someone else's iframe is a click taken under a disguise. An app that
+     * frames its own pages says `frame-ancestors 'self'` here instead, and
+     * `tinvar check` fails a policy that says nothing.
+     * X-Frame-Options says the same to a browser that reads no
+     * `frame-ancestors`.
      */
     public static function contentSecurityPolicy(string $nonce, bool $dev = false, bool $reports = false): string
     {
-        return "script-src 'nonce-{$nonce}' 'strict-dynamic'" . ($dev ? " 'unsafe-eval'" : '') . "; object-src 'none'; base-uri 'none'"
+        return "script-src 'nonce-{$nonce}' 'strict-dynamic'" . ($dev ? " 'unsafe-eval'" : '') . "; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
             . ($reports ? '; ' . ProblemReports::cspDirectives() : '');
     }
 
