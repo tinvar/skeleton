@@ -12,6 +12,7 @@ namespace Tests\Feature;
 
 use App\Database\Migrations;
 use App\Kernel;
+use Tinvar\Http\ContentSecurityPolicyRules;
 use Tinvar\Http\Request;
 use Tinvar\Observability\Logger;
 use Tinvar\Observability\MemorySink;
@@ -60,5 +61,5 @@ it('names /_reports in a document\'s policy only where it takes them', function 
 // No page framed, and `tinvar check` holds the policy to saying so.
 it('refuses every frame in a document\'s policy', function () {
     expect(Kernel::contentSecurityPolicy('bm9uY2U='))->toContain("frame-ancestors 'none'")
-        ->and(Tinvar\Http\ContentSecurityPolicyRules::check(Kernel::contentSecurityPolicy('bm9uY2U=')))->toBe([]);
+        ->and(ContentSecurityPolicyRules::check(Kernel::contentSecurityPolicy('bm9uY2U=')))->toBe([]);
 });
