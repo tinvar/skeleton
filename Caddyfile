@@ -26,6 +26,18 @@
 		timeouts {
 			write_idle 8s
 		}
+
+		# The proxies in front -- the TLS terminator, the load balancer --
+		# pinned in TINVAR_TRUSTED_PROXIES, which `tinvar serve` hands over
+		# space-separated. From one of them, the client is the right-most
+		# X-Forwarded-For hop that is not one of them, as PHP reads it for
+		# its throttles (Tinvar\Http\TrustedProxies, ADR 0134): so Caddy logs
+		# that client, and forwards it to a proxied upstream, rather than the
+		# terminator or whatever a client wrote. None pinned, and the peer is
+		# the client.
+		trusted_proxies static {$TINVAR_TRUSTED_PROXY_RANGES}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
 	}
 
 	frankenphp {

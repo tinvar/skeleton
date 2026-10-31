@@ -22,6 +22,14 @@ services:
       # without the token, and the entrypoint refuses to serve with none.
       TINVAR_PROBE_TOKEN: ${APP_PROBE_TOKEN:?set APP_PROBE_TOKEN, 32 characters or more (openssl rand -hex 24)}
       TINVAR_PROBE_TRUST_LOOPBACK: "0"
+      # The proxies in front, whose X-Forwarded-For names the client the
+      # throttles count (ADR 0134). Every visitor reaches this container
+      # through the TLS terminator, by the network's gateway when it runs on
+      # the host, or from this network when it is a service beside this one:
+      # keyed on that peer, they were one caller to every throttle, and one
+      # visitor's flood refused them all. The network below, pinned to say which;
+      # change both together. Empty, and the peer is the client.
+      TINVAR_TRUSTED_PROXIES: ${APP_TRUSTED_PROXIES:-10.213.91.0/24}
     # Loopback only: put a TLS terminator in front, since the cookies are
     # __Host- and the browser sends them over https alone.
     ports:
@@ -47,6 +55,14 @@ services:
     # theirs (up to 75 s).
     stop_grace_period: 120s
     restart: unless-stopped
+
+# Pinned, so TINVAR_TRUSTED_PROXIES above can name it: the gateway the host's
+# terminator connects through, and any terminator run as a service beside it.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${APP_SUBNET:-10.213.91.0/24}
 
 volumes:
   data:

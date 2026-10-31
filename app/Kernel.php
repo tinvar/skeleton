@@ -47,6 +47,7 @@ use Tinvar\Http\SqliteThrottleStore;
 use Tinvar\Http\Terminable;
 use Tinvar\Http\TestableApplication;
 use Tinvar\Http\Throttle;
+use Tinvar\Http\TrustedProxies;
 use Tinvar\Http\ThrottleStore;
 use Tinvar\Config\Configs;
 use Tinvar\Observability\ApcuMetricsStore;
@@ -187,6 +188,10 @@ final class Kernel implements TestableApplication, Terminable
         ?StandIns $standIns = null,
         ?Store $cacheStore = null,
         array $rendererUsers = [],
+        // The proxies in front, through which the throttles read the
+        // client's address (TINVAR_TRUSTED_PROXIES); none, and the peer is
+        // the client.
+        ?TrustedProxies $proxies = null,
     ) {
         // The overlay shows what the renderer said, so dev keeps it.
         $debug = $debug || $dev;
@@ -199,10 +204,13 @@ final class Kernel implements TestableApplication, Terminable
         // Keyed by this build as well: a shared store outlives a deploy.
         $cache = new QueryCache($cacheStore ?? new ArrayStore(), $auth, $panels, build: $fragments?->builds->current ?? self::build());
 
-        // The connecting peer, never X-Forwarded-For, which is whatever the
-        // client sent: keyed on it, a client could pick its own bucket.
-        // Behind a proxy you control, resolve the client address there.
-        $throttle = new Throttle($throttleStore, $auth, static fn (Request $r): string => $r->remoteAddress ?? '');
+        // The connecting peer, unless it is one of the proxies the
+        // deployment pinned (TINVAR_TRUSTED_PROXIES): then the right-most
+        // X-Forwarded-For hop that is not one of them, so a visitor behind
+        // the TLS terminator is not everyone behind it. Never the header
+        // from anyone else: it is whatever the client sent, and keyed on it
+        // a client could pick its own bucket (ADR 0134).
+        $throttle = new Throttle($throttleStore, $auth, ($proxies ?? TrustedProxies::none())->clientAddress(...));
 
         $container = (new Container())
             ->instance(Orm::class, $this->orm)
@@ -383,6 +391,7 @@ final class Kernel implements TestableApplication, Terminable
             $standIns,
             self::cacheStore(),
             $rendererUsers,
+            FrameworkConfig::load()->proxies(),
         );
 
         return $kernel;
