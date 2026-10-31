@@ -682,6 +682,14 @@ final class Kernel implements TestableApplication, Terminable
      * Meridian's own host for the design system. No package with framework
      * metadata is enabled; one that arrived would fail the check until it
      * is named here and locked (`bin/tinvar packages:lock`).
+     *
+     * @tinvar/react and @tinvar/renderer are not published on npm yet, and
+     * nobody has claimed the scope there: a package under either name could
+     * be anyone's. So they come from inside the app -- their `npm pack`
+     * tarballs, depended on as `file:` -- or not at all, and `bin/tinvar
+     * setup` installs nothing while package-lock.json says otherwise
+     * (ADR 0138). Take the entry out once they are published under a scope
+     * the project holds.
      */
     public static function packages(): PackagePolicy
     {
@@ -691,6 +699,7 @@ final class Kernel implements TestableApplication, Terminable
                 'fsevents' => "Vite's file watcher on macOS: npm builds its binding.gyp. Optional, and skipped elsewhere.",
             ],
             registries: [PackagePolicy::NPM_REGISTRY, 'https://design.chopper.dev/packages/'],
+            unpublished: ['@tinvar/*'],
         );
     }
 

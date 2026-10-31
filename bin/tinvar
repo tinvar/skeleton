@@ -20,6 +20,7 @@ use App\Kernel;
 use Tinvar\Codegen\CodegenCommand;
 use Tinvar\Console\AppConsole;
 use Tinvar\Http\ContentSecurityPolicyRules;
+use Tinvar\Packages\SupplyChain;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Routing\RouteRegistry;
 use Tinvar\Server\AssetRouteRules;
@@ -74,7 +75,7 @@ exit($console
     ->withCheck('Asset route failed:', static fn (): array => AssetRouteRules::check(APP_ROOT . '/Caddyfile'), "ok: Caddyfile's asset route serves only the names a build writes")
     // The public keys node agents and a console edge verify with (ADR 0119).
     ->withGatewayKeys(Kernel::appKey(...))
-    ->command('setup', 'setup', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm install with no install scripts', static fn (array $arguments): int => setup($console))
+    ->command('setup', 'setup', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm ci with no install scripts, from a lock tinvar check passes', static fn (array $arguments): int => setup($console))
     ->command('render', 'render --dump PATH [--build=DIR | --dev] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/), or with --dev through the running `tinvar dev`', static fn (array $arguments): int => devTools('render', $arguments))
     ->command('probe:token', 'probe:token', "Print the token /_health, /_ready and /_metrics take under this environment's profile: bound to it, so under staging not the one TINVAR_PROBE_TOKEN holds", static function (array $arguments): int {
         echo Kernel::probeToken(), "\n";
@@ -86,10 +87,17 @@ exit($console
 
 /**
  * Once, after composer create-project has installed the app: the key and
- * the probe token, the generated TypeScript, the database, then npm install -- from npm's
- * registry and Meridian's host, with no package's install script run. It
- * runs nothing it fetched: codegen and the migrations are this app's own
- * code and the framework's, which Composer installed.
+ * the probe token, the generated TypeScript, the database, then npm ci --
+ * from package-lock.json alone, every package held to its sha512, with no
+ * package's install script run. It runs nothing it fetched: codegen and the
+ * migrations are this app's own code and the framework's, which Composer
+ * installed.
+ *
+ * And it installs nothing from a lock the supply-chain check refuses.
+ * @tinvar/react and @tinvar/renderer are not on npm's registry yet, where
+ * anyone may publish under their names; until they are, the check refuses
+ * a lock that would fetch them from there (ADR 0138), and setup says how to
+ * install them from their tarballs instead.
  */
 function setup(AppConsole $console): int
 {
@@ -122,20 +130,32 @@ function setup(AppConsole $console): int
         }
     }
     $installed = false;
+    $refused = [];
     if ($npm !== null && getenv('TINVAR_SETUP_SKIP_NPM') !== '1') {
-        echo "\$ npm install --ignore-scripts --no-audit --no-fund\n";
-        $process = proc_open([$npm, 'install', '--ignore-scripts', '--no-audit', '--no-fund'], [STDIN, STDOUT, STDERR], $pipes, $root);
-        $installed = \is_resource($process) && proc_close($process) === 0;
-        if (!$installed) {
-            fwrite(STDERR, "npm install failed; run it again in {$root}.\n");
+        $refused = new SupplyChain($root, Kernel::packages())->check();
+        if ($refused !== []) {
+            fwrite(STDERR, "\nnpm ci was not run: tinvar check refuses what it would install.\n  " . implode("\n  ", $refused) . "\n");
+        } else {
+            echo "\$ npm ci --ignore-scripts --no-audit --no-fund\n";
+            $process = proc_open([$npm, 'ci', '--ignore-scripts', '--no-audit', '--no-fund'], [STDIN, STDOUT, STDERR], $pipes, $root);
+            $installed = \is_resource($process) && proc_close($process) === 0;
+            if (!$installed) {
+                fwrite(STDERR, "npm ci failed; run it again in {$root}.\n");
+            }
         }
     }
 
     $cd = escapeshellarg(basename($root));
     echo "\nThe app is ready. Next:\n\n";
     echo "  cd {$cd}\n";
-    if (!$installed) {
-        echo "  npm install --ignore-scripts        # Node 22.13 or later\n";
+    if (!$installed && array_filter($refused, static fn (string $line): bool => str_contains($line, 'PackagePolicy::$unpublished')) !== []) {
+        echo "  # @tinvar/react and @tinvar/renderer are not on npm yet: npm pack each\n";
+        echo "  # (packages/react, packages/renderer of the framework's repository) into\n";
+        echo "  # .packages/, depend on them in package.json as file:.packages/<tarball>,\n";
+        echo "  npm install --ignore-scripts        # then this, which locks them; Node 22.13 or later\n";
+        echo "  bin/tinvar check\n";
+    } elseif (!$installed) {
+        echo "  npm ci --ignore-scripts             # Node 22.13 or later\n";
     }
     echo "  bin/dev                             # dev mode: renders from source, reloads as you edit\n";
     echo "  npm run build && bin/serve          # or the build, as production serves it\n";
