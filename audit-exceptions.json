@@ -1,0 +1,11 @@
+{
+  "exceptions": [
+    {
+      "advisory": "GHSA-gcqx-w48m-w2h4",
+      "ecosystem": "npm",
+      "package": "deepmerge",
+      "reason": "Prototype poisoning of mergeObject()'s result. deepmerge 4.3.1 is the latest release and every one from 4.2.0 is affected. It reaches the app through @meridian/ui -> @react-email/components -> @react-email/render -> html-to-text 9.0.5, which merges only its own defaults with options the calling code sets: no request data reaches it. Low severity, below the moderate gate; kept here so the review is written down (ADR 0137).",
+      "expires": "2027-01-31"
+    }
+  ]
+}
