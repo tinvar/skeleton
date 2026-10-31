@@ -25,7 +25,7 @@
 # PHP 8.5 with the extensions the app needs, Composer and Node, each at one
 # version held to a sha256 (docker/setup). The build happens here and
 # nothing of this stage but its output ships.
-FROM php:8.5-cli@sha256:635a4b998025ab269194639a5549c6fdcd9b4f88ec8cd761b092de8653d40663 AS build
+FROM php:8.5-cli@sha256:9236fd373d3bcda0659cf94838a744bd79791419292958963f8c6b34a0071554 AS build
 
 COPY docker/setup /usr/local/lib/setup
 RUN /usr/local/lib/setup >/dev/null
@@ -105,7 +105,7 @@ RUN set -eu; \
 # sockets -- and then everything that builds or fetches taken out again:
 # the compilers and headers, PHP's source, phpize, PEAR and pecl, curl's
 # command and xz, and /var/www, which anyone may write.
-FROM php:8.5-cli@sha256:635a4b998025ab269194639a5549c6fdcd9b4f88ec8cd761b092de8653d40663 AS php
+FROM php:8.5-cli@sha256:9236fd373d3bcda0659cf94838a744bd79791419292958963f8c6b34a0071554 AS php
 
 COPY --from=build --chmod=0644 /src/vendor/tinvar/framework/resources/container/php.ini /usr/local/etc/php/php.ini
 RUN set -eu; \
