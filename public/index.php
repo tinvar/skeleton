@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 
 use App\Kernel;
+use Tinvar\Http\BuiltAssets;
 use Tinvar\Http\NotFoundException;
 use Tinvar\Http\Response;
 use Tinvar\Http\Sapi;
@@ -21,21 +22,14 @@ require \dirname(__DIR__) . '/vendor/autoload.php';
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
-// php -S serves a file only when the router script says so: the build's
-// hashed assets, and nothing else in dist/client.
-if (PHP_SAPI === 'cli-server') {
-    $path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
-    $root = realpath(Kernel::buildDirectory() . '/client');
-    $asset = realpath(Kernel::buildDirectory() . '/client' . (\is_string($path) ? $path : ''));
-    $types = ['js' => 'text/javascript', 'css' => 'text/css', 'svg' => 'image/svg+xml', 'woff2' => 'font/woff2'];
-    $extension = $asset === false ? '' : pathinfo($asset, PATHINFO_EXTENSION);
-    if ($asset !== false && $root !== false && str_starts_with($asset, $root . '/assets/') && is_file($asset) && isset($types[$extension])) {
-        header('content-type: ' . $types[$extension]);
-        header('cache-control: public, max-age=31536000, immutable');
-        readfile($asset);
+// The build's assets, when nothing in front of PHP serves them -- php -S, or
+// a server without the Caddyfile's file server: only what the build wrote
+// under client/assets/, by a hashed name, for a year (BuiltAssets, ADR 0097).
+$assets = new BuiltAssets(Kernel::buildDirectory())->match($_SERVER);
+if ($assets !== null) {
+    Sapi::send($assets);
 
-        return true;
-    }
+    return;
 }
 
 try {
