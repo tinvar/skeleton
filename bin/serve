@@ -56,6 +56,8 @@ else
   # On every start, not only after a build: a route renamed in PHP changes
   # it with nothing for Vite to rebuild.
   php "$app/bin/tinvar" build:fragments >&2
+  # And every class it registers, which production boots from (ADR 0146).
+  php "$app/bin/tinvar" discover >&2
 fi
 
 # The build is named by the hash of its client manifest -- what a browser

@@ -75,6 +75,7 @@ RUN test -f composer.lock && test -f package-lock.json \
 # load at run time, and nothing they would only build with.
 RUN npx vite build \
     && php bin/tinvar build:fragments \
+    && php bin/tinvar discover \
     && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 # The tree as it ships: root's, so neither process can change a file; what

@@ -37,7 +37,7 @@
     "minimatch": "11.0.3"
   },
   "scripts": {
-    "build": "vite build && php bin/tinvar build:fragments",
+    "build": "vite build && php bin/tinvar build:fragments && php bin/tinvar discover",
     "lint": "eslint resources && tsc --noEmit",
     "test": "vitest run"
   }

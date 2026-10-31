@@ -16,7 +16,7 @@ use Tinvar\Config\ConfigException;
 use Tinvar\Config\Configs;
 
 it('declares its config as bin/tinvar check holds it', function () {
-    expect(Configs::check(Kernel::CONFIGS))->toBe([]);
+    expect(Configs::check(Kernel::classes()->configs))->toBe([]);
 });
 
 it('reads its settings typed, with the defaults where unset', function () {

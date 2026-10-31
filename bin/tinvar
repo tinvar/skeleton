@@ -10,7 +10,7 @@ declare(strict_types=1);
  *
  * Tinvar\Console\AppConsole owns the commands every app has -- serve, dev,
  * the builds, the migrations, the generators, codegen and the check --
- * handed this app's Kernel, its routes and its directories. Add your own
+ * handed this app's Kernel, the classes it discovers and its directories. Add your own
  * the same way: `->command('name', 'usage', 'what it does', fn (array $arguments): int => ...)`.
  */
 
@@ -28,41 +28,24 @@ use Tinvar\Server\AssetRouteRules;
 /** The app's root: where composer.json, package.json and their lockfiles are. */
 const APP_ROOT = __DIR__ . '/..';
 
-/**
- * Data classes nothing routable reaches, which codegen and the check would
- * not find by themselves: the error page's, which no route renders, and an
- * email's props, say. Every Data class a page, layout, query or action
- * reaches is found without being listed.
- */
-const APP_PAYLOADS = [App\Data\ErrorPageData::class];
-
 $console = new AppConsole(
     root: APP_ROOT,
     console: __FILE__,
     namespace: 'App',
-    routes: Kernel::ROUTES,
-    queries: Kernel::QUERIES,
-    actions: Kernel::ACTIONS,
-    models: Kernel::MODELS,
-    configs: Kernel::CONFIGS,
+    // Every class the app registers, discovered under App\ (ADR 0146).
+    classes: Kernel::classes(...),
     packages: Kernel::packages(...),
     buildStore: Kernel::buildStore(...),
     database: Kernel::databasePath(...),
     migrations: App\Database\Migrations::PATH,
-    payloads: APP_PAYLOADS,
     // tinvar/codegen is a dev dependency: a production install has none.
     codegen: class_exists(CodegenCommand::class)
-        ? static fn (array $arguments): int => new CodegenCommand(
-            APP_ROOT . '/resources/types',
-            payloads: APP_PAYLOADS,
-            queries: Kernel::QUERIES,
-            routes: Kernel::ROUTES,
-            actions: Kernel::ACTIONS,
-        )->run($arguments)
+        ? static fn (array $arguments): int => CodegenCommand::of(APP_ROOT . '/resources/types', Kernel::classes())->run($arguments)
         : null,
-    // make:page, make:query, make:action and make:model add what they write
-    // to Kernel::ROUTES, QUERIES, ACTIONS and MODELS, and a page's view to
-    // resources/entries/rsc.tsx.
+    // Discovery reads the classes under the Kernel's namespace, and
+    // `discover`, `build` and `check` its manifest in dist/. make:page,
+    // make:query, make:action and make:model write classes it finds, and a
+    // page's view into resources/entries/rsc.tsx.
     kernel: Kernel::class,
     // `serve` writes the renderers' lines into the app's log as well.
     rendererLog: Kernel::rendererLog(...),
@@ -182,7 +165,7 @@ function devTools(string $command, array $arguments): int
     }
 
     $routes = new RouteRegistry();
-    $routes->registerAll(Kernel::ROUTES);
+    $routes->registerAll(Kernel::classes()->routes);
     $root = realpath(APP_ROOT) ?: APP_ROOT;
     $tools = new Tinvar\Testing\Dev\DevToolsCommand(
         app: $root,
@@ -201,8 +184,8 @@ function devTools(string $command, array $arguments): int
                 dev: $dev !== null,
             );
         },
-        models: Kernel::MODELS,
-        configs: Kernel::CONFIGS,
+        models: Kernel::classes()->models,
+        configs: Kernel::classes()->configs,
         log: Kernel::config()->log ?? Kernel::databasePath() . '-app.log',
     );
 

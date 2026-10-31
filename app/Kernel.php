@@ -4,14 +4,8 @@ declare(strict_types=1);
 
 namespace App;
 
-use App\Actions\NoteActions;
 use App\Config\AppConfig;
-use App\Models\Note;
-use App\Pages\ErrorPage;
-use App\Pages\Home;
 use App\Pages\Layout;
-use App\Policies\NotePolicy;
-use App\Queries\RecentNotes;
 use Tinvar\Actions\ActionRegistry;
 use Tinvar\Auth\Authenticatable;
 use Tinvar\Auth\AuthContext;
@@ -50,6 +44,8 @@ use Tinvar\Http\Throttle;
 use Tinvar\Http\TrustedProxies;
 use Tinvar\Http\ThrottleStore;
 use Tinvar\Config\Configs;
+use Tinvar\Discovery\DiscoveredClasses;
+use Tinvar\Discovery\Discovery;
 use Tinvar\Observability\ApcuMetricsStore;
 use Tinvar\Observability\ArrayMetricsStore;
 use Tinvar\Observability\DatabaseCheck;
@@ -104,15 +100,16 @@ use Tinvar\Support\StandIns;
  * this class adds what is the app's own: the session cookie, and turning a
  * loaded route into a render.
  *
- * Register what you add in the lists below: a page or layout in ROUTES, a
- * query in QUERIES, an action class in ACTIONS, a model's policy in
- * POLICIES. `bin/tinvar check` holds every one of them to the security
- * model's build rules. The example shop (examples/shop in the framework's
+ * What you add registers itself: a #[Page] or #[Layout], a #[Query], a
+ * class with #[Action] methods, a model, a #[Policy(Model::class)], a
+ * #[Config] class -- each is discovered under App\ by what it declares,
+ * whatever folder it is in (classes(), ADR 0146). `bin/tinvar check` holds
+ * every one of them to the security model's build rules. The example shop (examples/shop in the framework's
  * repository) wires the rest -- sign-in and sessions with rows, panels,
  * jobs and mail, live updates, uploads, static pages -- the same way.
  *
  * Its settings come from the environment, never a file in the project,
- * through a typed #[Config] class in CONFIGS -- APP_DATABASE, APP_LOG and
+ * through a typed #[Config] class -- APP_DATABASE, APP_LOG and
  * the TINVAR_* it reads are App\Config\AppConfig's -- beside the app key,
  * TINVAR_APP_KEY or TINVAR_APP_KEY_FILE (.env.example lists them).
  */
@@ -121,28 +118,18 @@ final class Kernel implements TestableApplication, Terminable
     /** The app's name, in the title of every page and on the error shell. */
     public const string NAME = 'Tinvar app';
 
-    /** Every page and layout, and the error page shown when a document request fails. */
-    public const array ROUTES = [Layout::class, Home::class, ErrorPage::class];
-
-    public const array QUERIES = [RecentNotes::class];
-
-    public const array ACTIONS = [NoteActions::class];
-
-    /** @var array<class-string, class-string> */
-    public const array POLICIES = [Note::class => NotePolicy::class];
-
     /**
-     * The models, for the migrations and the generators, and handed to each
-     * registry, which holds every entry point it registers to
-     * tenant-scoped-ids-must-be-typed. Add one here when you add a model.
+     * Every class the app registers: its pages and layouts, queries,
+     * actions, policies, models, #[Config] classes and the rest, discovered
+     * under App\ by what each declares (ADR 0146) -- from the build's
+     * manifest in production, which `bin/tinvar build` writes and which
+     * must be there, and from a scan kept while the files stay as they were
+     * anywhere else. The framework's own config is added by hand.
      */
-    public const array MODELS = [Note::class];
-
-    /**
-     * The #[Config] classes: loaded at boot, listed by `bin/tinvar config`,
-     * and held by `bin/tinvar check`. Add one here when you add a class.
-     */
-    public const array CONFIGS = [AppConfig::class, FrameworkConfig::class];
+    public static function classes(): DiscoveredClasses
+    {
+        return Discovery::of(self::class, self::buildDirectory())->classes()->with(configs: [FrameworkConfig::class]);
+    }
 
     public readonly Orm $orm;
     public readonly QueryRegistry $queries;
@@ -216,17 +203,20 @@ final class Kernel implements TestableApplication, Terminable
             ->instance(Orm::class, $this->orm)
             ->instance(Throttle::class, $throttle);
 
-        $this->queries = new QueryRegistry($container->resolver(), self::MODELS);
-        $this->queries->registerAll(self::QUERIES);
+        // Every class the app registers, read once (ADR 0146).
+        $classes = self::classes();
 
-        $this->actions = new ActionRegistry($container->resolver(), self::MODELS);
-        $this->actions->registerAll(self::ACTIONS);
+        $this->queries = new QueryRegistry($container->resolver(), $classes->models);
+        $this->queries->registerAll($classes->queries);
 
-        $this->routes = new RouteRegistry(self::MODELS);
-        $this->routes->registerAll(self::ROUTES);
+        $this->actions = new ActionRegistry($container->resolver(), $classes->models);
+        $this->actions->registerAll($classes->actions);
+
+        $this->routes = new RouteRegistry($classes->models);
+        $this->routes->registerAll($classes->routes);
 
         $policies = new PolicyRegistry($container->resolver());
-        $policies->registerAll(self::POLICIES);
+        $policies->registerAll($classes->policies);
 
         $runner = new QueryRunner(
             registry: $this->queries,
@@ -336,7 +326,7 @@ final class Kernel implements TestableApplication, Terminable
     ): self {
         // First of all: a key missing or malformed stops the process here,
         // every one named, before anything is opened on a guess.
-        Configs::loadAll(self::CONFIGS);
+        Configs::loadAll(self::classes()->configs);
         $dev ??= FrameworkConfig::load()->devMode();
         $key ??= self::appKey();
         $socketPath ??= self::config()->socket;
@@ -961,7 +951,7 @@ final class Kernel implements TestableApplication, Terminable
         }
         if ($routes === null) {
             $routes = new RouteRegistry();
-            $routes->registerAll(self::ROUTES);
+            $routes->registerAll(self::classes()->routes);
         }
 
         return FragmentManifestProducer::produce($routes, $deferred);
