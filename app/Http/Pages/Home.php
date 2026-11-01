@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Pages;
+namespace App\Http\Pages;
 
-use App\Data\HomePageData;
+use App\Http\Data\HomePageData;
 use App\Kernel;
-use App\Models\Note;
+use App\Database\Models\Note;
 use Tinvar\Attributes\Authorize;
 use Tinvar\Attributes\Page;
 

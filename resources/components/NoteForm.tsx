@@ -8,7 +8,7 @@ import { Form } from '@tinvar/react/form';
 import { add } from '@actions/NoteActions';
 
 /**
- * A note, posted to App\Actions\NoteActions::add().
+ * A note, posted to App\Http\Actions\NoteActions::add().
  *
  * A real form: before JavaScript loads it is an ordinary post, with the
  * session's CSRF token in a hidden field, and a mistake comes back as the

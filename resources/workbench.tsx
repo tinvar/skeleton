@@ -22,8 +22,8 @@ import { NoteList } from './components/NoteList';
  */
 
 const notes = [
-  { id: 'n-1', body: 'Ship the first page.', createdAt: '2026-10-28T09:30:00Z' },
-  { id: 'n-2', body: 'Write a query and a test for it.', createdAt: '2026-10-28T10:05:00Z' },
+  { id: 'n-1', body: 'Ship the first page.', createdAt: '2026-10-28T09:30:00.000Z' },
+  { id: 'n-2', body: 'Write a query and a test for it.', createdAt: '2026-10-28T10:05:00.000Z' },
 ];
 
 const workbench: Workbench = {

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Queries;
+namespace App\Http\Queries;
 
-use App\Data\NoteData;
-use App\Data\NotesData;
-use App\Models\Note;
+use App\Http\Data\NoteData;
+use App\Http\Data\NotesData;
+use App\Database\Models\Note;
 use Tinvar\Attributes\Authorize;
 use Tinvar\Attributes\PublicAccess;
 use Tinvar\Attributes\Query;

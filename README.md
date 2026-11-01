@@ -44,14 +44,17 @@ bin/serve
 ## What is here
 
 ```
-app/Kernel.php            the composition root: routes, queries, actions, policies
-app/Pages/                #[Page] and #[Layout] classes; Home is the home page
-app/Queries/              #[Query] classes, which server components call
-app/Actions/              #[Action] methods, which forms post to
-app/Requests/             form requests: what an action is posted
-app/Models/               #[Table] models
+app/Kernel.php            the composition root, and the only file at app/'s root
+app/Http/Pages/           #[Page] and #[Layout] classes; Home is the home page
+app/Http/Queries/         #[Query] classes, which server components call
+app/Http/Actions/         #[Action] methods, which forms post to
+app/Http/Requests/        form requests: what an action is posted
+app/Http/Data/            the Data classes that cross to the renderer
+app/Database/Models/      #[Table] models
+app/Database/Migrations.php  where the migrations are
 app/Policies/             what #[Authorize] asks
-app/Data/                 the Data classes that cross to the renderer
+app/Auth/                 the session cookie and the flashes
+app/Config/               the app's #[Config] settings
 database/migrations/      one migration per file
 resources/pages/          the views, one .tsx per page or layout
 resources/components/     server and 'use client' components
@@ -69,9 +72,11 @@ yet, so both say `#[PublicAccess]` and `NotePolicy` lets anyone in: decide
 who may, once it has them.
 
 `bin/tinvar make:page`, `make:query`, `make:action`, `make:model` and
-`make:migration` write the next ones, and register each in `app/Kernel.php`
-and a page's view in `resources/entries/rsc.tsx`. `bin/tinvar help` lists
-every command.
+`make:migration` write the next ones into this layout, each registered by
+being there, and a page's view in `resources/entries/rsc.tsx`. Give a name
+a domain once the app has more than one: `make:page Orders/OrderDetail`
+writes `app/Http/Pages/Orders/OrderDetail.php` and its Data beside the
+domain's in `app/Http/Data/Orders/`. `bin/tinvar help` lists every command.
 
 ## Check it
 

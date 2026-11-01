@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App;
 
 use App\Config\AppConfig;
-use App\Pages\Layout;
+use App\Http\Pages\Layout;
 use Tinvar\Actions\ActionRegistry;
 use Tinvar\Auth\Authenticatable;
 use Tinvar\Auth\AuthContext;
@@ -88,6 +88,8 @@ use Tinvar\Support\BuildProfile;
 use Tinvar\Support\DevMode;
 use Tinvar\Support\Signer;
 use Tinvar\Support\StandIns;
+use App\Auth\Flashes;
+use App\Auth\Session;
 
 /**
  * Wires the app together: its composition root.

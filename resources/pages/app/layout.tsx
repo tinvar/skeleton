@@ -7,7 +7,7 @@ import { Link } from '@tinvar/react/link';
 
 /**
  * The shell around every page: the header, the page, and a footer.
- * App\Pages\Layout is its PHP side, at `/`, so it wraps every route.
+ * App\Http\Pages\Layout is its PHP side, at `/`, so it wraps every route.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (

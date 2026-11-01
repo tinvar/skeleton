@@ -4,7 +4,7 @@ import { colors, space } from '@meridian/ui/tokens.stylex';
 import { recentNotes } from '@queries';
 
 /**
- * The newest notes: a server component, awaiting App\Queries\RecentNotes
+ * The newest notes: a server component, awaiting App\Http\Queries\RecentNotes
  * over the render's own socket. The build reads this call, and the home
  * route may call this query and no other.
  */

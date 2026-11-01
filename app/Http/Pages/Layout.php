@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Pages;
+namespace App\Http\Pages;
 
 use Tinvar\Attributes\Layout as LayoutAttribute;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Auth;
 
 use Tinvar\Http\CsrfTokens;
 use Tinvar\Http\Middleware\VerifyCsrfToken;

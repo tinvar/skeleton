@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Models\Note;
+use App\Database\Models\Note;
 use Tinvar\Attributes\Policy;
 use Tinvar\Auth\Authenticatable;
 

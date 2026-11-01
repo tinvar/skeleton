@@ -8,7 +8,7 @@ import { NoteForm } from '../../components/NoteForm';
 import { NoteList } from '../../components/NoteList';
 
 /**
- * The home page, a server component. `data` is what App\Pages\Home's
+ * The home page, a server component. `data` is what App\Http\Pages\Home's
  * loader returned, typed from the PHP by codegen. The list streams in
  * behind its own boundary when its query resolves; the form is a client
  * component, which posts to an action.

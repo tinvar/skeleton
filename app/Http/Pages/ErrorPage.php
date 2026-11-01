@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Pages;
+namespace App\Http\Pages;
 
-use App\Data\ErrorPageData;
+use App\Http\Data\ErrorPageData;
 use Tinvar\Attributes\ErrorPage as ErrorPageAttribute;
 use Tinvar\Http\HttpError;
 use Tinvar\Http\Request;

@@ -8,7 +8,7 @@ use Tinvar\Orm\Schema\Table;
 
 /**
  * The notes, and the flashes a form posted without script leaves for the
- * page it is sent back to (App\Flashes).
+ * page it is sent back to (App\Auth\Flashes).
  *
  * `bin/tinvar make:migration` writes the next one from the models, by
  * comparing them with the database: read it before you commit it.
@@ -19,8 +19,9 @@ return new class extends Migration {
         $schema->create('notes', function (Table $table): void {
             $table->uuid('id')->primary();
             $table->string('body', 500);
-            // UTC, ISO 8601 to the microsecond, so it sorts as text.
-            $table->string('created_at', 32);
+            // A moment, stored as the database keeps one (ADR 0145): on
+            // SQLite ISO 8601 in UTC at one width, so it sorts as text.
+            $table->timestamp('created_at');
             $table->index(['created_at']);
         });
 

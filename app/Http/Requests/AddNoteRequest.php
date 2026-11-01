@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Requests;
+namespace App\Http\Requests;
 
 use Tinvar\Validation\FormRequest;
 use Tinvar\Validation\Rules\Max;

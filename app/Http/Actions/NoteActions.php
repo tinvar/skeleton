@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Http\Actions;
 
-use App\Models\Note;
-use App\Requests\AddNoteRequest;
+use App\Database\Models\Note;
+use App\Http\Requests\AddNoteRequest;
 use Tinvar\Actions\ActionResult;
 use Tinvar\Attributes\Action;
 use Tinvar\Attributes\Authorize;
@@ -36,9 +36,7 @@ final class NoteActions
 
         $note = new Note();
         $note->body = $body;
-        // To the microsecond: two notes in one second still list in the
-        // order they were added, which their random ids would not decide.
-        $note->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z');
+        // Its createdAt is stamped by the ORM as it is inserted.
         $this->orm->save($note);
 
         // The page the browser has open, rendered again through its whole

@@ -11,13 +11,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Actions\NoteActions;
-use App\Data\NotesData;
+use App\Http\Actions\NoteActions;
+use App\Http\Data\NotesData;
 use App\Database\Migrations;
 use App\Kernel;
-use App\Pages\ErrorPage;
-use App\Pages\Home;
-use App\Queries\RecentNotes;
+use App\Http\Pages\ErrorPage;
+use App\Http\Pages\Home;
+use App\Http\Queries\RecentNotes;
 use Tinvar\Observability\Logger;
 use Tinvar\Observability\MemorySink;
 use Tinvar\Observability\Telemetry;

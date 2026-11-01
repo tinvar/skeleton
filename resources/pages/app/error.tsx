@@ -6,7 +6,7 @@ import { Title } from '@tinvar/react/head';
 import type { ErrorPageData } from '../../types/generated';
 
 /**
- * A page that could not be shown (App\Pages\ErrorPage): the mark, what
+ * A page that could not be shown (App\Http\Pages\ErrorPage): the mark, what
  * happened and why, exactly one way forward, and the reference its failure
  * is logged under. No header: the navigation might be what failed.
  */
