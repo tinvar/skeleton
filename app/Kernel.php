@@ -107,6 +107,7 @@ use Tinvar\Render\SocketTrust;
 use Tinvar\Routing\LoadedRoute;
 use Tinvar\Routing\RouteRegistry;
 use Tinvar\Support\AppKey;
+use Tinvar\Support\StateFile;
 use Tinvar\Support\BuildProfile;
 use Tinvar\Support\DevMode;
 use Tinvar\Support\Signer;
@@ -469,6 +470,7 @@ final class Kernel implements TestableApplication, Terminable
         // Before anything opens: a toolbar asked for in production stops here.
         $toolbar = DevToolbar::fromEnvironment($sessionId, dev: $dev, build: self::build());
 
+        $named = $database !== null;
         $database ??= self::databasePath();
         $manifest ??= $dev ? self::devFragmentManifest() : self::fragmentManifest();
 
@@ -487,7 +489,9 @@ final class Kernel implements TestableApplication, Terminable
             routeSigner: new Signer($key, RouteToken::PURPOSE),
         );
 
-        $connection = PdoConnection::sqlite($database, 'app');
+        // A database a caller names -- a test's, `render --dump`'s copy -- is
+        // a SQLite file; otherwise the one the config says.
+        $connection = $named ? PdoConnection::sqlite($database, 'app') : self::connection();
         $telemetry ??= self::telemetry($database);
 
         $kernel = new self(
@@ -892,25 +896,15 @@ final class Kernel implements TestableApplication, Terminable
             ?? throw new \RuntimeException('No place to keep a generated probe token: set TINVAR_PROBE_TOKEN, or TINVAR_PROBE_TOKEN_FILE (absolute, outside the project, readable by this user alone).');
     }
 
-    /** A file of this app's in this user's state directory, by extension; null with none. */
+    /**
+     * A file of this app's in this user's state directory, by extension;
+     * null with none. One file per app on this machine, named for where it
+     * is (StateFile): two apps made from this skeleton never sign with one
+     * key.
+     */
     private static function stateFile(string $extension): ?string
     {
-        // One file per app on this machine, named for where it is: two apps
-        // made from this skeleton never sign with one key.
-        $root = realpath(\dirname(__DIR__)) ?: \dirname(__DIR__);
-        $name = (preg_replace('/[^a-z0-9-]+/', '-', strtolower(basename($root))) ?? 'app') . '-' . substr(hash('sha256', $root), 0, 12) . '.' . $extension;
-
-        // The XDG spec says to ignore a relative XDG_STATE_HOME; so does this.
-        $state = getenv('XDG_STATE_HOME');
-        if (\is_string($state) && str_starts_with($state, '/')) {
-            return "{$state}/tinvar/{$name}";
-        }
-        $home = getenv('HOME');
-        if (\is_string($home) && str_starts_with($home, '/')) {
-            return "{$home}/.local/state/tinvar/{$name}";
-        }
-
-        return null;
+        return StateFile::of(\dirname(__DIR__), $extension);
     }
 
     /**
@@ -920,6 +914,33 @@ final class Kernel implements TestableApplication, Terminable
     public static function config(): AppConfig
     {
         return Configs::load(AppConfig::class);
+    }
+
+    /**
+     * The app's database, as APP_DATABASE_DRIVER says: the SQLite file at
+     * databasePath(), or a Postgres or MySQL server by APP_DATABASE_HOST,
+     * APP_DATABASE_PORT and APP_DATABASE_NAME, as APP_DATABASE_USER with
+     * APP_DATABASE_PASSWORD (or the file APP_DATABASE_PASSWORD_FILE names).
+     * The migrations run against it (`bin/tinvar migrate`) as the server does.
+     *
+     * @param bool $create make the SQLite file where it is missing, as migrating does
+     */
+    public static function connection(bool $create = false): PdoConnection
+    {
+        $config = self::config();
+        if (!$config->databaseDriver->isServer()) {
+            return PdoConnection::sqlite(self::databasePath(), 'app', create: $create);
+        }
+
+        return PdoConnection::server(
+            $config->databaseDriver,
+            (string) $config->databaseHost,
+            $config->databasePort,
+            (string) $config->databaseName,
+            $config->databaseUser,
+            $config->databasePassword?->reveal(),
+            'app',
+        );
     }
 
     /** APP_DATABASE, or database/app.sqlite. */

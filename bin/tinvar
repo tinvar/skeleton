@@ -17,6 +17,10 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Kernel;
+use Tinvar\Config\ConfigException;
+use Tinvar\Config\EnvironmentFile;
+use Tinvar\Orm\Connection;
+use Tinvar\Orm\Migrations\MigrationRefused;
 use Tinvar\Codegen\CodegenCommand;
 use Tinvar\Console\AppConsole;
 use Tinvar\Http\ContentSecurityPolicyRules;
@@ -28,6 +32,19 @@ use Tinvar\Testing\ResourceTestSource;
 
 /** The app's root: where composer.json, package.json and their lockfiles are. */
 const APP_ROOT = __DIR__ . '/..';
+
+// .env, on a developer's machine, before anything reads config: what
+// `tinvar new` wrote -- the database, mail, the hosts -- for this CLI and
+// everything it starts, serve's workers and dev's included. Never on a
+// server, never over what the environment already says, and never a secret
+// (EnvironmentFile): a key goes in a file outside the project, named in its
+// _FILE variable.
+try {
+    EnvironmentFile::load(APP_ROOT . '/.env');
+} catch (ConfigException $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
 
 $console = new AppConsole(
     root: APP_ROOT,
@@ -56,6 +73,15 @@ $console = new AppConsole(
     // them -- run this CLI's queue:work beside the server: the account
     // emails go out through it.
     workers: true,
+    // The migrations, and `doctor`, open the database the app does: the
+    // SQLite file, made by `migrate` where it is missing, or the Postgres or
+    // MySQL server APP_DATABASE_DRIVER names.
+    connect: static fn (bool $create): Connection => $create || Kernel::config()->databaseDriver->isServer() || is_file(Kernel::databasePath())
+        ? Kernel::connection($create)
+        : throw new MigrationRefused('No database at ' . Kernel::databasePath() . '; `bin/tinvar migrate` makes one.'),
+    // Where `key:generate` and `doctor` find the key and the probe token.
+    keyFile: Kernel::keyFile(...),
+    probeTokenFile: Kernel::probeTokenFile(...),
 );
 
 // The queue's commands, over the app's Kernel (its `console`): queue:work

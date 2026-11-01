@@ -6,6 +6,9 @@ namespace App\Config;
 
 use Tinvar\Attributes\Config;
 use Tinvar\Attributes\Env;
+use Tinvar\Config\ConfigException;
+use Tinvar\Config\Secret;
+use Tinvar\Orm\DatabaseDriver;
 
 /**
  * What the app reads from its environment: each key is a constructor
@@ -29,8 +32,21 @@ use Tinvar\Attributes\Env;
 final readonly class AppConfig
 {
     public function __construct(
-        // The SQLite database; Kernel::databasePath() has the default.
+        // The SQLite database; Kernel::databasePath() has the default. On a
+        // server database, the files kept beside it -- the log, the metrics,
+        // the throttle counts, the build history -- are still named from it.
         public ?string $database = null,
+        // sqlite, postgres or mysql. A server is reached by host, port and
+        // name, the user and the password apart: never a URL or a DSN, where
+        // the password is one printed line away from a log.
+        public DatabaseDriver $databaseDriver = DatabaseDriver::Sqlite,
+        public ?string $databaseHost = null,
+        public ?int $databasePort = null,
+        public ?string $databaseName = null,
+        public ?string $databaseUser = null,
+        // APP_DATABASE_PASSWORD, or the file APP_DATABASE_PASSWORD_FILE names.
+        #[\SensitiveParameter, Env(file: true)]
+        public ?Secret $databasePassword = null,
         // Where the JSON log lines go; a file beside the database unless set.
         public ?string $log = null,
         // The https origin the app is served on, as https://app.example:
@@ -64,5 +80,22 @@ final readonly class AppConfig
         // In dev, where the dev server writes what each view may defer and query.
         #[Env('TINVAR_DEFERRED_MANIFEST')]
         public ?string $deferredManifest = null,
-    ) {}
+    ) {
+        // A server named by half is refused at boot, each missing piece by
+        // its variable, rather than connecting to a default nobody chose.
+        if ($databaseDriver->isServer()) {
+            $missing = [];
+            foreach (['APP_DATABASE_HOST' => $databaseHost, 'APP_DATABASE_NAME' => $databaseName, 'APP_DATABASE_USER' => $databaseUser] as $variable => $value) {
+                if ($value === null || trim($value) === '') {
+                    $missing[] = "{$variable} is required where APP_DATABASE_DRIVER is {$databaseDriver->value}.";
+                }
+            }
+            if ($missing !== []) {
+                throw new ConfigException($missing);
+            }
+        }
+        if ($databasePort !== null && ($databasePort < 1 || $databasePort > 65535)) {
+            throw ConfigException::invalid('APP_DATABASE_PORT', 'must be a port, 1 to 65535');
+        }
+    }
 }
