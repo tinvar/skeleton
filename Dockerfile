@@ -30,7 +30,7 @@ FROM php:8.5-cli@sha256:9236fd373d3bcda0659cf94838a744bd79791419292958963f8c6b34
 COPY docker/setup /usr/local/lib/setup
 RUN /usr/local/lib/setup >/dev/null
 
-# FrankenPHP's official static binary, v1.13.3 with PHP 8.5.12, the glibc
+# FrankenPHP's official static binary, v1.13.4 with PHP 8.5.12, the glibc
 # one, whose allocator is glibc's; and tini, v0.19.0, the container's PID 1
 # once the entrypoint has started both sides. Sums from each release's
 # assets; `tinvar deps:check` in the framework's repository moves them with
@@ -40,19 +40,19 @@ RUN set -eu; \
     case "$TARGETARCH" in \
         arm64) \
             frankenphp=frankenphp-linux-aarch64-gnu; \
-            frankenphp_sha256=53aca1dfd4496cd1cb1d1954d0e9a5896e60c65dc7a61ebd7a821c69bdcea539; \
+            frankenphp_sha256=439922840c5afaba450ce9a7c1863dd740bbd4d53591d0f6bff5fd1945b2c0a7; \
             tini=tini-static-arm64; \
             tini_sha256=eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a48b9 ;; \
         amd64) \
             frankenphp=frankenphp-linux-x86_64-gnu; \
-            frankenphp_sha256=d210c06bfcd7ed974c05376fc7fa9c300b1db8cd2a7c793bed5ed8d087b3f0ef; \
+            frankenphp_sha256=d4d032529a2553bf91034a47ded3f1f1b99c1630541008b3ce1ce0d28f01dbcc; \
             tini=tini-static-amd64; \
             tini_sha256=c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee ;; \
         *) echo "No FrankenPHP or tini is pinned for $TARGETARCH." >&2; exit 1 ;; \
     esac; \
     mkdir -p /out/bin; \
     curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o /out/bin/frankenphp \
-        "https://github.com/php/frankenphp/releases/download/v1.13.3/$frankenphp"; \
+        "https://github.com/php/frankenphp/releases/download/v1.13.4/$frankenphp"; \
     echo "$frankenphp_sha256  /out/bin/frankenphp" | sha256sum --check --strict --quiet -; \
     curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o /out/bin/tini \
         "https://github.com/krallin/tini/releases/download/v0.19.0/$tini"; \
