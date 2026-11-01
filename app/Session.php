@@ -21,7 +21,7 @@ use Tinvar\Support\Signer;
  * request. Nothing is stored for it: the app has no accounts yet. When it
  * has, the session needs a row behind it, and the id has to be rotated on
  * every privilege change, signing in above all; the example shop
- * (examples/shop, Shop\Auth\Sessions) shows how.
+ * (examples/shop, Shop\Auth\Sessions\Sessions) shows how.
  *
  * `__Host-`, so a browser takes it only with Secure, Path=/ and no Domain:
  * neither a sibling subdomain nor a plain-http response can plant one.
