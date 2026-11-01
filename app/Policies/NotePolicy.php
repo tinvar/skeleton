@@ -14,10 +14,11 @@ use Tinvar\Auth\Authenticatable;
  * query body or action body runs; an ability with no method here refuses
  * everyone.
  *
- * The app has no accounts yet, so $user is always null, and these say yes
- * to anyone: reading the notes, and leaving one, which the actions'
- * throttle and AddNoteRequest bound. Once the app has accounts, say here
- * who may.
+ * These say yes to anyone, signed in or not -- $user is the signed-in
+ * App\Database\Models\Account\User, or null: reading the notes, and
+ * leaving one, which the actions' throttle and AddNoteRequest bound. To
+ * keep notes to people with accounts, say so here, and take #[PublicAccess]
+ * off the query and the action.
  */
 #[Policy(Note::class)]
 final class NotePolicy

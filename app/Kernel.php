@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace App;
 
+use App\Auth\Account\Users;
 use App\Config\AppConfig;
-use App\Http\Pages\Layout;
+use App\Mail\Account\AccountMails;
+use Tinvar\Accounts\AccountLinks;
+use Tinvar\Accounts\AccountsKit;
+use Tinvar\Accounts\SessionCookie;
+use Tinvar\Accounts\StartSession;
 use Tinvar\Actions\ActionRegistry;
+use Tinvar\Attributes\OutboundPolicy;
+use Tinvar\Attributes\Queue as QueueOptions;
 use Tinvar\Auth\Authenticatable;
 use Tinvar\Auth\AuthContext;
 use Tinvar\Auth\PanelContext;
@@ -19,6 +26,7 @@ use Tinvar\Cache\Store;
 use Tinvar\Codec\FrameCodec;
 use Tinvar\Codec\MessagePackCodec;
 use Tinvar\Config\FrameworkConfig;
+use Tinvar\Console\Console;
 use Tinvar\Container\Container;
 use Tinvar\Data\Encoder;
 use Tinvar\Data\SharedReads;
@@ -46,6 +54,18 @@ use Tinvar\Http\ThrottleStore;
 use Tinvar\Config\Configs;
 use Tinvar\Discovery\DiscoveredClasses;
 use Tinvar\Discovery\Discovery;
+use Tinvar\Jobs\Dispatcher;
+use Tinvar\Jobs\Envelope;
+use Tinvar\Jobs\JobRunner;
+use Tinvar\Mail\Address;
+use Tinvar\Mail\ArrayTransport;
+use Tinvar\Mail\DkimConfig;
+use Tinvar\Mail\Mailer;
+use Tinvar\Mail\MailRenderer;
+use Tinvar\Mail\MailTransports;
+use Tinvar\Mail\RendererTemplates;
+use Tinvar\Mail\SendMail;
+use Tinvar\Mail\Transport;
 use Tinvar\Observability\ApcuMetricsStore;
 use Tinvar\Observability\ArrayMetricsStore;
 use Tinvar\Observability\DatabaseCheck;
@@ -63,11 +83,14 @@ use Tinvar\Observability\Telemetry;
 use Tinvar\Orm\IdentityMap;
 use Tinvar\Orm\Orm;
 use Tinvar\Orm\PdoConnection;
+use Tinvar\Outbound\PinnedHttp;
 use Tinvar\Packages\PackagePolicy;
 use Tinvar\Protocol\Frame;
 use Tinvar\Protocol\PageMetadata;
 use Tinvar\Query\QueryRegistry;
 use Tinvar\Query\QueryRunner;
+use Tinvar\Queue\DatabaseQueue;
+use Tinvar\Queue\Queue;
 use Tinvar\Render\FragmentManifest;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Render\FragmentMinter;
@@ -89,7 +112,6 @@ use Tinvar\Support\DevMode;
 use Tinvar\Support\Signer;
 use Tinvar\Support\StandIns;
 use App\Auth\Flashes;
-use App\Auth\Session;
 
 /**
  * Wires the app together: its composition root.
@@ -99,16 +121,18 @@ use App\Auth\Session;
  * rest by hand; there are no service providers. Every request goes through
  * the framework's Kernel -- middleware, the throttle, CSRF, authorization,
  * the reset contract, exception classification and the error pages -- and
- * this class adds what is the app's own: the session cookie, and turning a
- * loaded route into a render.
+ * this class adds what is the app's own: its accounts -- the session, sign-up
+ * and sign-in, passkeys and two-factor, from the framework's accounts kit
+ * (Tinvar\Accounts, ADR 0150) -- its queue and mail, and turning a loaded
+ * route into a render.
  *
  * What you add registers itself: a #[Page] or #[Layout], a #[Query], a
  * class with #[Action] methods, a model, a #[Policy(Model::class)], a
  * #[Config] class -- each is discovered under App\ by what it declares,
  * whatever folder it is in (classes(), ADR 0146). `bin/tinvar check` holds
- * every one of them to the security model's build rules. The example shop (examples/shop in the framework's
- * repository) wires the rest -- sign-in and sessions with rows, panels,
- * jobs and mail, live updates, uploads, static pages -- the same way.
+ * every one of them to the security model's build rules. The example shop
+ * (examples/shop in the framework's repository) wires the rest -- panels,
+ * live updates, uploads, static pages -- the same way.
  *
  * Its settings come from the environment, never a file in the project,
  * through a typed #[Config] class -- APP_DATABASE, APP_LOG and
@@ -130,13 +154,28 @@ final class Kernel implements TestableApplication, Terminable
      */
     public static function classes(): DiscoveredClasses
     {
-        return Discovery::of(self::class, self::buildDirectory())->classes()->with(configs: [FrameworkConfig::class]);
+        return Discovery::of(self::class, self::buildDirectory())->classes()->with(configs: [FrameworkConfig::class, DkimConfig::class, ...MailTransports::configs()]);
     }
 
     public readonly Orm $orm;
     public readonly QueryRegistry $queries;
     public readonly RouteRegistry $routes;
     public readonly ActionRegistry $actions;
+
+    /** The accounts kit: the session, sign-in and every account flow (ADR 0150). */
+    public readonly AccountsKit $accounts;
+
+    /** Where jobs wait: the jobs table, beside the rows they are about. */
+    public readonly Queue $queue;
+
+    /** Sends the app's email, through the renderer, now or on the queue worker. */
+    public readonly Mailer $mailer;
+
+    /** queue:work and the rest of the framework's commands, over this app (bin/tinvar). */
+    public readonly Console $console;
+
+    /** The session cookie's name: `__Host-`, so nothing outside this origin can plant it. */
+    public const string SESSION_COOKIE = '__Host-app_session';
 
     /** The framework's composition root, which every request goes through. */
     private readonly HttpKernel $http;
@@ -181,6 +220,19 @@ final class Kernel implements TestableApplication, Terminable
         // client's address (TINVAR_TRUSTED_PROXIES); none, and the peer is
         // the client.
         ?TrustedProxies $proxies = null,
+        // Where sign-in guesses are counted: never APCu, which a flood of
+        // other keys clears (SignInThrottle, ADR 0023). A file beside the
+        // database unless given.
+        ?ThrottleStore $signInStore = null,
+        // Where the account emails' links are built and passkeys are for:
+        // AccountLinks::origin() of APP_URL unless given.
+        ?string $origin = null,
+        // Where jobs wait, how mail is drawn and where it goes: the jobs
+        // table, the renderer and TINVAR_MAIL_PROVIDER's transport unless
+        // given -- a test's MailFake, say.
+        ?Queue $queue = null,
+        ?MailRenderer $mailRenderer = null,
+        ?Transport $mailTransport = null,
     ) {
         // The overlay shows what the renderer said, so dev keeps it.
         $debug = $debug || $dev;
@@ -203,7 +255,8 @@ final class Kernel implements TestableApplication, Terminable
 
         $container = (new Container())
             ->instance(Orm::class, $this->orm)
-            ->instance(Throttle::class, $throttle);
+            ->instance(Throttle::class, $throttle)
+            ->instance(AuthContext::class, $auth);
 
         // Every class the app registers, read once (ADR 0146).
         $classes = self::classes();
@@ -254,6 +307,51 @@ final class Kernel implements TestableApplication, Terminable
         $this->manifest = $manifest ?? ($dev ? self::devFragmentManifest($this->routes) : self::fragmentManifest());
         $logged = $telemetry?->logger->forExceptions();
 
+        // Background work, in the app's own database (its tables are a
+        // migration): a job dispatched while a row is written is a row
+        // written in the same transaction, so it exists exactly when the
+        // row does. `bin/tinvar queue:work` runs it, and `bin/dev` and
+        // `bin/serve --worker` run that.
+        $this->queue = $queue ?? new DatabaseQueue($connection);
+        $jobSigner = new Signer($key, Envelope::PURPOSE);
+        $jobs = new Dispatcher($this->queue, $this->orm, $jobSigner, $auth, $panels);
+        $this->mailer = new Mailer(
+            // fromEnvironment() hands in the environment's; built by hand,
+            // the mail is kept in memory and goes nowhere.
+            $mailTransport ?? new ArrayTransport(),
+            // Drawn by the renderer, as pages are: resources/emails/, named in
+            // resources/entries/mail.tsx.
+            $mailRenderer ?? new RendererTemplates($this->channel, telemetry: $telemetry),
+            self::mailFrom(),
+            $jobs,
+            $this->encoder,
+            $telemetry,
+        );
+
+        // The accounts (ADR 0150): the users in App\Database\Models\Account\User
+        // through App\Auth\Account\Users, their email in App\Mail\Account,
+        // every link built on APP_URL, and sign-in guesses counted where a
+        // flood cannot clear them.
+        $this->accounts = new AccountsKit(
+            connection: $connection,
+            key: $key,
+            users: new Users($this->orm),
+            mails: new AccountMails(),
+            jobs: $jobs,
+            mailer: $this->mailer,
+            throttles: $signInStore ?? self::signInStore(':memory:'),
+            throttle: $throttle,
+            origin: $origin ?? AccountLinks::origin(self::config()->url, self::config()->servedAt),
+            name: self::NAME,
+            auth: $auth,
+            csrf: $this->csrf,
+            cookieName: self::SESSION_COOKIE,
+            limits: $limits,
+        );
+        $this->accounts->register($container)
+            ->instance(Dispatcher::class, $jobs)
+            ->instance(Mailer::class, $this->mailer);
+
         $this->http = new HttpKernel(
             orm: $this->orm,
             routes: $this->routes,
@@ -279,9 +377,12 @@ final class Kernel implements TestableApplication, Terminable
             csrf: $this->csrf,
             manifest: $this->manifest,
             partialReloads: true,
+            // Every request's session, opened before anything reads who is
+            // signed in: the accounts kit's (ADR 0150).
+            globalMiddleware: [StartSession::class],
             // A form posted without script that fails is sent back to its
             // page with its errors, which wait for it here, by session.
-            flashes: new Flashes($this->orm, $key),
+            flashes: new Flashes($this->orm, $this->accounts->cookie),
             historyKeys: $historyKeys,
             panels: $panels,
             errorShell: new ErrorShell(name: self::NAME, logo: self::mark(), homeHref: '/', homeLabel: 'Go to the home page'),
@@ -302,6 +403,24 @@ final class Kernel implements TestableApplication, Terminable
                 $telemetry->logger,
             ),
             standIns: $standIns,
+        );
+
+        // queue:work and the queue's other commands. A job that runs as the
+        // user who dispatched it is found again at their epoch now.
+        $this->console = new Console(
+            commands: $classes->commands,
+            orm: $this->orm,
+            resolver: $container->resolver(),
+            scope: $this->http->scope,
+            panels: $panels,
+            queue: $this->queue,
+            runner: new JobRunner($this->orm, $jobSigner, $container->resolver(), $auth, $panels, users: $this->accounts->lookup),
+            report: static function (\Throwable $e) use ($report): void {
+                $report($e, null);
+            },
+            // Mail first: an account email is what someone is waiting on.
+            queues: [SendMail::QUEUE, QueueOptions::DEFAULT],
+            telemetry: $telemetry,
         );
     }
 
@@ -325,6 +444,12 @@ final class Kernel implements TestableApplication, Terminable
         // What answers in place of a query's or an action's body: a test's fakes.
         ?StandIns $standIns = null,
         ?FragmentManifest $manifest = null,
+        // A test's: how mail is drawn and where it goes (a MailFake), where
+        // sign-in guesses are counted, and the origin links are built on.
+        ?MailRenderer $mailRenderer = null,
+        ?Transport $mailTransport = null,
+        ?ThrottleStore $signInStore = null,
+        ?string $origin = null,
     ): self {
         // First of all: a key missing or malformed stops the process here,
         // every one named, before anything is opened on a guess.
@@ -338,7 +463,8 @@ final class Kernel implements TestableApplication, Terminable
 
         // One resolver for every binding: fragment and route tokens, the CSRF
         // token, the history key and the toolbar's token, all the session's.
-        $sessionId = static fn (Request $r): string => Session::of($r, $key);
+        $cookie = new SessionCookie($key, self::SESSION_COOKIE);
+        $sessionId = static fn (Request $r): string => $cookie->of($r);
 
         // Before anything opens: a toolbar asked for in production stops here.
         $toolbar = DevToolbar::fromEnvironment($sessionId, dev: $dev, build: self::build());
@@ -384,6 +510,10 @@ final class Kernel implements TestableApplication, Terminable
             self::cacheStore(),
             $rendererUsers,
             FrameworkConfig::load()->proxies(),
+            $signInStore ?? self::signInStore($database),
+            $origin,
+            mailRenderer: $mailRenderer,
+            mailTransport: $mailTransport ?? self::mailTransport($database),
         );
 
         return $kernel;
@@ -434,17 +564,18 @@ final class Kernel implements TestableApplication, Terminable
             return $this->http->handle($request, $respond, $rawBody);
         }
 
+        $cookie = $this->accounts->cookie;
         $issued = null;
-        if (Session::id($request->cookie(Session::COOKIE), $this->key) === null) {
-            $issued = Session::issue($this->key);
-            $request = self::withRequestCookie($request, Session::COOKIE, $issued);
+        if ($cookie->id($request->cookie($cookie->name)) === null) {
+            $issued = $cookie->issue();
+            $request = self::withRequestCookie($request, $cookie->name, $issued);
         }
 
         $response = $this->http->handle($request, $respond, $rawBody);
 
-        return $issued === null || isset($response->cookies()[Session::COOKIE])
+        return $issued === null || isset($response->cookies()[$cookie->name])
             ? $response
-            : Session::set($response, $issued, $this->csrf);
+            : $cookie->set($response, $issued, $this->csrf);
     }
 
     /** The framework's composition root, for the testing layer's direct calls. */
@@ -459,13 +590,14 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * The app has no accounts to sign anyone in as. Add them, and this is
-     * where a test's session for one is made, with no password asked; see
-     * the example shop's Kernel::signedIn().
+     * The cookies a browser signed in as $user sends with $request: a
+     * session row made as signing in makes one, with no password asked.
+     * For tests (TestableApplication); refused where the environment says
+     * production. No route, action or endpoint reaches it.
      */
     public function signedIn(Authenticatable $user, Request $request): array
     {
-        throw new \InvalidArgumentException('This app has no accounts to sign ' . get_debug_type($user) . ' in as.');
+        return $this->accounts->signedIn($user, $request);
     }
 
     /**
@@ -852,6 +984,58 @@ final class Kernel implements TestableApplication, Terminable
         $token = self::probeToken();
 
         return self::config()->probeTrustLoopback ? new ProbeAccess(token: $token) : new ProbeAccess([], $token);
+    }
+
+    /**
+     * Where sign-in guesses, two-factor codes and requests for account email
+     * are counted: a SQLite file beside the database, which nothing else
+     * fills -- never APCu, where anyone can fill the store until it clears
+     * every count, sign-in's with it (ADR 0023). One server's: behind a load
+     * balancer, name a store every server reaches.
+     */
+    public static function signInStore(?string $database = null): ThrottleStore
+    {
+        $database ??= self::databasePath();
+
+        return new SqliteThrottleStore($database === ':memory:' ? ':memory:' : "{$database}-sign-in");
+    }
+
+    /**
+     * Where the app's email goes: TINVAR_MAIL_PROVIDER and the named
+     * provider's own variables -- `smtp` with TINVAR_SMTP_HOST and the rest,
+     * or `ses`, `postmark`, `mailgun`, `resend` or `sendgrid` (ADR 0147).
+     * Unset, in development, a log file -- APP_MAIL_LOG, or one beside the
+     * database -- so nothing leaves the machine; where the environment says
+     * production, a provider that sends must be named, and the boot stops
+     * without.
+     */
+    public static function mailTransport(?string $database = null): Transport
+    {
+        $database ??= self::databasePath();
+        $log = self::config()->mailLog
+            ?? ($database === ':memory:' ? (self::stateFile('mail.log') ?? throw new \RuntimeException('No place for the mail log: set APP_MAIL_LOG.')) : "{$database}-mail.log");
+
+        return new MailTransports(new PinnedHttp(OutboundPolicy::of(self::class)), DkimConfig::load()->signer(), $log)->transport();
+    }
+
+    /**
+     * Who the app's email is from: APP_MAIL_FROM. In development, a stand-in
+     * on localhost; where the environment says production, it must be set,
+     * since mail from an address nobody owns is mail nobody can answer, and
+     * the boot stops without.
+     */
+    public static function mailFrom(): Address
+    {
+        $from = self::config()->mailFrom;
+        if ($from !== null && $from !== '') {
+            return new Address($from, self::NAME);
+        }
+        $marker = DevMode::productionMarker(array_filter(getenv(), \is_string(...)));
+        if ($marker !== null) {
+            throw new \RuntimeException("APP_MAIL_FROM is not set, and {$marker}=production: set it to the address the app's email comes from, as hello@app.example.");
+        }
+
+        return new Address('no-reply@app.localhost', self::NAME);
     }
 
     /**

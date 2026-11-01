@@ -20,9 +20,9 @@ use Tinvar\Orm\Orm;
  * request and as the same user, and codegen types it as `recentNotes()` in
  * the `@queries` module. Its #[Authorize] runs on every call, before its
  * body, and its body runs read-only: a write here is refused. Public, as
- * the action is, while the app has no accounts.
+ * the action is: the notes are for everyone, signed in or not.
  */
-#[Query, PublicAccess('Anyone may read the notes: the app has no accounts yet.'), Authorize('viewAny', Note::class)]
+#[Query, PublicAccess('Anyone may read the notes, signed in or not.'), Authorize('viewAny', Note::class)]
 final class RecentNotes
 {
     /** The most one call may ask for. */

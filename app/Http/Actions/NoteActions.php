@@ -23,10 +23,10 @@ final class NoteActions
 {
     public function __construct(private readonly Orm $orm) {}
 
-    // Public: the app has no accounts, so no one could sign in to post.
-    // An action requires a signed-in user unless it says otherwise, and
-    // this says so in the open; take it off once the app has accounts.
-    #[Action(name: 'notes.add'), PublicAccess('Anyone may leave a note: the app has no accounts yet.'), Authorize('create', Note::class)]
+    // Public: anyone may leave a note, signed in or not. An action requires
+    // a signed-in user unless it says otherwise, and this says so in the
+    // open; take it off to keep notes to people with accounts.
+    #[Action(name: 'notes.add'), PublicAccess('Anyone may leave a note, signed in or not.'), Authorize('create', Note::class)]
     public function add(AddNoteRequest $request): ActionResult
     {
         $body = trim($request->body);

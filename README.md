@@ -53,7 +53,7 @@ app/Http/Data/            the Data classes that cross to the renderer
 app/Database/Models/      #[Table] models
 app/Database/Migrations.php  where the migrations are
 app/Policies/             what #[Authorize] asks
-app/Auth/                 the session cookie and the flashes
+app/Auth/                 the users the accounts kit reads, and the flashes
 app/Config/               the app's #[Config] settings
 database/migrations/      one migration per file
 resources/pages/          the views, one .tsx per page or layout
@@ -67,9 +67,31 @@ Caddyfile                 how FrankenPHP serves the app
 ```
 
 The home page lists notes with a query (`RecentNotes`) and adds one with an
-action (`NoteActions::add`, posted by `<NoteForm>`). The app has no accounts
-yet, so both say `#[PublicAccess]` and `NotePolicy` lets anyone in: decide
-who may, once it has them.
+action (`NoteActions::add`, posted by `<NoteForm>`). Both say
+`#[PublicAccess]` and `NotePolicy` lets anyone in, signed in or not: decide
+there who may.
+
+## Accounts
+
+The app has accounts from the start, from the framework's accounts kit
+(`Tinvar\Accounts`, ADR 0150): signing up by a link to the address, signing
+in by password or passkey, two-factor codes from an authenticator app with
+recovery codes, a forgotten and a changed password, a change of address by
+a link to the new one, and signing out everywhere. The pages are under
+`app/Http/Pages/Account/` and `resources/pages/account/`, the actions under
+`app/Http/Actions/Account/`, the emails' words in `app/Mail/Account/` and
+`resources/emails/`, and the users in `app/Database/Models/Account/User.php`
+through `app/Auth/Account/Users.php` -- change those two to keep your
+people in a table of your own. A page for signed-in users says
+`#[Middleware(RequireSignIn::class)]`.
+
+Its email goes through the queue, which `bin/dev` and `bin/serve` run
+beside the server. In development it lands in
+`database/app.sqlite-mail.log`, its links on `http://localhost:PORT`; open
+the app on `localhost` rather than 127.0.0.1, which passkeys refuse. In
+production set `APP_URL` (the https origin every link is built on and
+passkeys are made for), `APP_MAIL_FROM` and `TINVAR_MAIL_PROVIDER`: the app
+refuses to start without them.
 
 `bin/tinvar make:page`, `make:query`, `make:action`, `make:model` and
 `make:migration` write the next ones into this layout, each registered by

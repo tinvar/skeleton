@@ -73,4 +73,5 @@ export TINVAR_BUILD
 php "$app/bin/tinvar" build:current "$TINVAR_BUILD" >&2 || true
 php "$app/bin/tinvar" build:prune >&2 || true
 
-exec php "$app/bin/tinvar" serve "$@"
+# With the queue worker beside it: the account emails go out through it.
+exec php "$app/bin/tinvar" serve --worker "$@"

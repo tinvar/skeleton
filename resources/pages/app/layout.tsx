@@ -2,14 +2,16 @@ import * as stylex from '@stylexjs/stylex';
 import { AppHeader, Container, LogoMark, Text } from '@meridian/ui';
 import { colors, space } from '@meridian/ui/tokens.stylex';
 import { media } from '@meridian/ui/palette.stylex';
-import type { ReactNode } from 'react';
 import { Link } from '@tinvar/react/link';
+import type { LayoutProps } from '../../types/generated';
+import { SignOutButton } from '../../components/account/AccountSettings';
 
 /**
  * The shell around every page: the header, the page, and a footer.
- * App\Http\Pages\Layout is its PHP side, at `/`, so it wraps every route.
+ * App\Http\Pages\Layout is its PHP side, at `/`, so it wraps every route;
+ * its loader says who is signed in, for the header's account links.
  */
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default function AppLayout({ data, children }: LayoutProps<'app'>) {
   return (
     <>
       <AppHeader
@@ -19,6 +21,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Link>
         }
         breadcrumbs={<Text weight={600}>Tinvar app</Text>}
+        actions={
+          data.userName === null ? (
+            <nav {...stylex.props(styles.nav)} aria-label="Account">
+              <Link href="/sign-in">Sign in</Link>
+              <Link href="/sign-up">Make an account</Link>
+            </nav>
+          ) : (
+            <nav {...stylex.props(styles.nav)} aria-label="Account">
+              <Link href="/account">{data.userName}</Link>
+              <SignOutButton />
+            </nav>
+          )
+        }
       />
       <main {...stylex.props(styles.main)}>
         <Container>{children}</Container>
@@ -35,6 +50,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 const styles = stylex.create({
+  nav: { alignItems: 'center', columnGap: space.s4, display: 'flex' },
   main: {
     minHeight: '70dvh',
     paddingBlock: { default: space.s8, [media.phone]: space.s6 },

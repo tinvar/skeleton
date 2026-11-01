@@ -10,4 +10,6 @@ set -eu
 app=$(cd "$(dirname "$0")/.." && pwd)
 
 php "$app/bin/tinvar" migrate >&2
-exec php "$app/bin/tinvar" dev "$@"
+# With the queue worker beside it: the account emails go out through it,
+# into the mail log (database/app.sqlite-mail.log) unless a provider is named.
+exec php "$app/bin/tinvar" dev --worker "$@"

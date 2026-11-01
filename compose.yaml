@@ -1,6 +1,7 @@
 # The app's image, run as it is meant to run. From the app's root:
 #
-#   cp .env.example .env     # then fill in APP_KEY, APP_PROBE_TOKEN and APP_TRUSTED_PROXY_SECRET
+#   cp .env.example .env     # then fill in APP_KEY, APP_PROBE_TOKEN, APP_TRUSTED_PROXY_SECRET,
+#                            # APP_URL, APP_MAIL_FROM and APP_MAIL_PROVIDER
 #   docker compose build
 #   docker compose up -d
 #
@@ -32,6 +33,12 @@ services:
       # without the token, and the entrypoint refuses to serve with none.
       TINVAR_PROBE_TOKEN: ${APP_PROBE_TOKEN:?set APP_PROBE_TOKEN, 32 characters or more (openssl rand -hex 24)}
       TINVAR_PROBE_TRUST_LOOPBACK: "0"
+      # The accounts (ADR 0150): the https origin every emailed link is
+      # built on and passkeys are made for, who the mail is from, and where
+      # it goes -- each required, the boot stopping without it.
+      APP_URL: ${APP_URL:?set APP_URL, the https origin the app is served on, as https://app.example}
+      APP_MAIL_FROM: ${APP_MAIL_FROM:?set APP_MAIL_FROM, the address the app's email comes from}
+      TINVAR_MAIL_PROVIDER: ${APP_MAIL_PROVIDER:?set APP_MAIL_PROVIDER, the provider that sends the app's mail (smtp, ses, postmark, mailgun, resend or sendgrid), and its own variables}
       # The proxies in front, whose X-Forwarded-For names the client the
       # throttles count (ADR 0134). Every visitor reaches this container
       # through the TLS terminator, by the network's gateway when it runs on

@@ -52,7 +52,22 @@ $console = new AppConsole(
     kernel: Kernel::class,
     // `serve` writes the renderers' lines into the app's log as well.
     rendererLog: Kernel::rendererLog(...),
+    // `serve --worker` and `dev --worker` -- as bin/serve and bin/dev run
+    // them -- run this CLI's queue:work beside the server: the account
+    // emails go out through it.
+    workers: true,
 );
+
+// The queue's commands, over the app's Kernel (its `console`): queue:work
+// sends the account emails (ADR 0150), and the rest look after it.
+foreach ([
+    'queue:work' => ['queue:work [--queue=mail,default] [--sleep=S] [--max-jobs=N] [--max-time=S] [--memory=MB] [--timeout=S] [--stop-budget=S] [--stop-when-empty]', "Run the app's queued jobs -- its email among them -- until stopped"],
+    'queue:failed' => ['queue:failed', 'Every job that failed for good, and why'],
+    'queue:retry' => ['queue:retry <id>... | all', 'Put failed jobs back on their queues'],
+    'queue:hand-back' => ['queue:hand-back <file>', 'Put back the job a worker killed at a stop held (serve runs it)'],
+] as $name => [$usage, $about]) {
+    $console->command($name, $usage, $about, static fn (array $arguments): int => queue($name, $arguments));
+}
 
 exit($console
     // Who may frame a page: the document policy must say.
@@ -70,6 +85,35 @@ exit($console
     })
     ->command('mcp', 'mcp [--build=DIR | --dev]', "A Model Context Protocol server on standard input and output: the app's routes, queries, actions, models and settings (never a value), the end of its log, and render --dump. Reads only", static fn (array $arguments): int => devTools('mcp', $arguments))
     ->run($argv));
+
+/**
+ * One of the queue's commands, through the app's Kernel. queue:work draws
+ * email with the renderers: the pool `serve` and `dev` name in
+ * TINVAR_SOCKET, or -- run on its own -- one started here from the build.
+ *
+ * @param list<string> $arguments
+ */
+function queue(string $command, array $arguments): int
+{
+    $renderer = null;
+    $socket = getenv('TINVAR_SOCKET');
+    if ($command === 'queue:work' && (!\is_string($socket) || $socket === '' || !file_exists($socket))) {
+        try {
+            $renderer = Tinvar\Server\RendererProcess::start(APP_ROOT, Kernel::buildDirectory() . '/rsc/index.js');
+        } catch (RuntimeException $e) {
+            fwrite(STDERR, $e->getMessage() . "\nBuild the app first (npm run build), or run the queue through bin/serve or bin/dev, which start their own renderers.\n");
+
+            return 1;
+        }
+        $socket = $renderer->socketPath;
+    }
+
+    try {
+        return Kernel::fromEnvironment(\is_string($socket) && $socket !== '' ? $socket : null)->console->run($command, $arguments);
+    } finally {
+        $renderer?->stop();
+    }
+}
 
 /**
  * Once, after composer create-project has installed the app: the key and

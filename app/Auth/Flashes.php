@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth;
 
+use Tinvar\Accounts\SessionCookie;
 use Tinvar\Http\Flash;
 use Tinvar\Http\FlashStore;
 use Tinvar\Http\Request;
@@ -26,8 +27,7 @@ final class Flashes implements FlashStore
 
     public function __construct(
         private readonly Orm $orm,
-        #[\SensitiveParameter]
-        private readonly string $key,
+        private readonly SessionCookie $cookie,
     ) {}
 
     public function put(Request $request, array $flash): void
@@ -85,7 +85,7 @@ final class Flashes implements FlashStore
     /** A hash of the request's session id, or null without a valid one. */
     private function sessionOf(Request $request): ?string
     {
-        $id = Session::id($request->cookie(Session::COOKIE), $this->key);
+        $id = $this->cookie->id($request->cookie($this->cookie->name));
 
         return $id === null ? null : hash('sha256', $id);
     }

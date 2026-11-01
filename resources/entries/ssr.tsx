@@ -34,6 +34,13 @@ export async function handleSsr(
 }
 
 /**
+ * Email, rendered here rather than in the rsc environment: @tinvar/mail
+ * draws with react-dom/server, which the react-server condition does not
+ * have.
+ */
+export { renderMail } from './mail';
+
+/**
  * Every client component's module, loaded before the first render: the
  * renderer awaits it through the rsc entry's warm() before it takes a page,
  * so the first page's head preloads every chunk a later one's would.

@@ -11,6 +11,15 @@ import '../styles/app.css';
 import AppLayout from '../pages/app/layout';
 import HomePage from '../pages/app/home';
 import ErrorPage from '../pages/app/error';
+import SignUpPage from '../pages/account/sign-up';
+import CompleteSignUpPage from '../pages/account/complete-sign-up';
+import SignInPage from '../pages/account/sign-in';
+import TwoFactorPage from '../pages/account/two-factor';
+import ForgotPasswordPage from '../pages/account/forgot-password';
+import ResetPasswordPage from '../pages/account/reset-password';
+import ConfirmEmailPage from '../pages/account/confirm-email';
+import SettingsPage from '../pages/account/settings';
+import type { LayoutDataMap } from '../types/generated';
 
 type Page = (props: { data: never; params: never }) => ReactNode;
 
@@ -21,6 +30,15 @@ type Page = (props: { data: never; params: never }) => ReactNode;
  */
 const ROUTES: Record<string, { Page: Page; layouts: readonly 'app'[] }> = {
   'app/home': { Page: HomePage as Page, layouts: ['app'] },
+  // The accounts (ADR 0150): App\Http\Pages\Account.
+  'account/sign-up': { Page: SignUpPage as Page, layouts: ['app'] },
+  'account/complete-sign-up': { Page: CompleteSignUpPage as Page, layouts: ['app'] },
+  'account/sign-in': { Page: SignInPage as Page, layouts: ['app'] },
+  'account/two-factor': { Page: TwoFactorPage as Page, layouts: ['app'] },
+  'account/forgot-password': { Page: ForgotPasswordPage as Page, layouts: ['app'] },
+  'account/reset-password': { Page: ResetPasswordPage as Page, layouts: ['app'] },
+  'account/confirm-email': { Page: ConfirmEmailPage as Page, layouts: ['app'] },
+  'account/settings': { Page: SettingsPage as Page, layouts: ['app'] },
   // A system page: no header, since the navigation might be what failed.
   'app/error': { Page: ErrorPage as Page, layouts: [] },
 };
@@ -103,7 +121,12 @@ function buildTree(frame: RenderFrame) {
     page: () => <route.Page data={frame.data.page as never} params={frame.params as never} />,
     layouts: route.layouts.map((key) => ({
       key,
-      render: (children: ReactNode) => <AppLayout>{children}</AppLayout>,
+      render: (children: ReactNode) => (
+        // Who is signed in, from App\Http\Pages\Layout's loader.
+        <AppLayout data={(frame.data.layouts?.[key] ?? { userName: null }) as LayoutDataMap['app']}>
+          {children}
+        </AppLayout>
+      ),
     })),
   });
 }
@@ -169,6 +192,21 @@ export async function warm() {
   const ssr = await import.meta.viteRsc.loadModule<typeof import('./ssr')>('ssr', 'index');
 
   return ssr.warm();
+}
+
+type MailFrame = { template: string; props: Record<string, unknown>; links?: unknown; rid: string };
+
+/**
+ * One email, for the queue worker (a `mail` frame): drawn in the ssr
+ * environment, which has the react-dom/server @tinvar/mail renders with.
+ * The frame's links -- the message's origin -- go with it, and the kit
+ * holds every link it draws to them. No query client: a template is
+ * handed everything it shows.
+ */
+export async function renderMail(frame: MailFrame): Promise<{ html: string; text: string }> {
+  const ssr = await import.meta.viteRsc.loadModule<typeof import('./ssr')>('ssr', 'index');
+
+  return ssr.renderMail({ template: frame.template, props: frame.props, links: frame.links });
 }
 
 // The plugin's convention; unused by the socket path, kept so `vite build`

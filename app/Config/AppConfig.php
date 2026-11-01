@@ -33,6 +33,20 @@ final readonly class AppConfig
         public ?string $database = null,
         // Where the JSON log lines go; a file beside the database unless set.
         public ?string $log = null,
+        // The https origin the app is served on, as https://app.example:
+        // account emails' links are built on it, and passkeys are made for
+        // its host. Required where the environment says production; in
+        // development the address `bin/dev` serves on stands in.
+        public ?string $url = null,
+        // Where `tinvar serve` and `tinvar dev` say they serve: the stand-in
+        // for APP_URL in development. Set by them, not by you.
+        #[Env('TINVAR_URL')]
+        public ?string $servedAt = null,
+        // The address the app's email comes from; required in production.
+        public ?string $mailFrom = null,
+        // Where mail goes while no TINVAR_MAIL_PROVIDER is named, in
+        // development: a file beside the database unless set.
+        public ?string $mailLog = null,
         // The renderers' pool directory, or one renderer's socket.
         #[Env('TINVAR_SOCKET')]
         public string $socket = '/tmp/tinvar.sock',
