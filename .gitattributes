@@ -1,0 +1,3 @@
+# The browser test is the framework repository's, run by bin/skeleton-proof
+# against an app made from this; an app has no Playwright to run it with.
+/e2e export-ignore
