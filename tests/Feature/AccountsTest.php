@@ -180,6 +180,15 @@ function signUp(Kernel $kernel, MailFake $mail, string $email, string $name = 'A
     return $browser;
 }
 
+/** A call a script makes to the app's API with an API token: no cookie, a bearer token alone. */
+function api(Kernel $kernel, string $token, string $operation, array $body = []): Response
+{
+    return $kernel->handle(
+        new Request('POST', "/_api/{$operation}", ['host' => 'app.test', 'content-type' => 'application/json', 'authorization' => "Bearer {$token}"], remoteAddress: '198.51.100.40'),
+        json_encode((object) $body, JSON_THROW_ON_ERROR),
+    );
+}
+
 function signedInAs(Browser $browser): ?string
 {
     $browser->get('/account');
@@ -480,3 +489,48 @@ function tap(object $value, \Closure $with): object
 
     return $value;
 }
+
+it('lists, creates once and revokes API tokens, which outlive a sign-in elsewhere and end when every session does', function () {
+    $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
+    $browser->get('/account/api-tokens');
+    expect($browser->page('tokens'))->toBe([])
+        ->and(array_column($browser->page('scopes'), 'value'))->toBe(['notes:read']);
+
+    // A scope the API does not declare is refused, by its field.
+    expect($browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:write'], 'lifetime' => '30'])->status)->toBe(422);
+
+    $created = $browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:read'], 'lifetime' => '30']);
+    expect($created->status)->toBe(200);
+    $token = (string) (json_decode($created->body(), true)['value']['token'] ?? '');
+    expect($token)->toStartWith('tvr_');
+
+    // Listed by name, never its text.
+    $browser->get('/account/api-tokens');
+    expect(array_column($browser->page('tokens'), 'name'))->toBe(['Export'])
+        ->and(json_encode($browser->props))->not->toContain($token);
+
+    $notes = api($this->kernel, $token, 'recentNotes');
+    expect($notes->status)->toBe(200, $notes->body());
+
+    // Signing in on another device leaves it working; signing out everywhere ends it.
+    $phone = new Browser($this->kernel, '192.0.2.70');
+    $phone->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD]);
+    $phone->action('account.signOut');
+    expect(api($this->kernel, $token, 'recentNotes')->status)->toBe(200);
+    $browser->action('account.signOutEverywhere');
+    expect(api($this->kernel, $token, 'recentNotes')->status)->toBe(401);
+
+    // And revoking one ends it at once.
+    $browser->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD]);
+    $second = (string) (json_decode($browser->action('account.createApiToken', ['name' => 'Second', 'scopes' => ['notes:read']])->body(), true)['value']['token'] ?? '');
+    expect(api($this->kernel, $second, 'recentNotes')->status)->toBe(200);
+    $browser->get('/account/api-tokens');
+    $id = (string) ($browser->page('tokens')[0]['id'] ?? '');
+    expect($browser->action('account.revokeApiToken', ['id' => $id])->status)->toBe(200)
+        ->and(api($this->kernel, $second, 'recentNotes')->status)->toBe(401)
+        ->and($browser->action('account.revokeApiToken', ['id' => $id])->status)->toBe(422);
+});
+
+it('sends a visitor to sign in from the API tokens page', function () {
+    expect(new Browser($this->kernel)->get('/account/api-tokens')->header('location'))->toBe('/sign-in?next=%2Faccount%2Fapi-tokens');
+});

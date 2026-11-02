@@ -10,6 +10,7 @@ use App\Database\Models\Note;
 use Tinvar\Attributes\Authorize;
 use Tinvar\Attributes\PublicAccess;
 use Tinvar\Attributes\Query;
+use Tinvar\Attributes\RequiresScope;
 use Tinvar\Orm\Direction;
 use Tinvar\Orm\Orm;
 
@@ -21,8 +22,13 @@ use Tinvar\Orm\Orm;
  * the `@queries` module. Its #[Authorize] runs on every call, before its
  * body, and its body runs read-only: a write here is refused. Public, as
  * the action is: the notes are for everyone, signed in or not.
+ *
+ * And an API (ADR 0159): with #[RequiresScope] a script holding an API
+ * token made on the account's API tokens page with `notes:read` calls it
+ * at `POST /_api/{name}`, `Authorization: Bearer tvr_...`. Every scope a
+ * token may hold is one declared like this.
  */
-#[Query, PublicAccess('Anyone may read the notes, signed in or not.'), Authorize('viewAny', Note::class)]
+#[Query, PublicAccess('Anyone may read the notes, signed in or not.'), Authorize('viewAny', Note::class), RequiresScope('notes:read')]
 final class RecentNotes
 {
     /** The most one call may ask for. */

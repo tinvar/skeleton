@@ -19,6 +19,7 @@ import ForgotPasswordPage from '../pages/account/forgot-password';
 import ResetPasswordPage from '../pages/account/reset-password';
 import ConfirmEmailPage from '../pages/account/confirm-email';
 import SettingsPage from '../pages/account/settings';
+import ApiTokensPage from '../pages/account/api-tokens';
 import AdminResourceIndexPage from '../pages/admin/resources/index';
 import AdminResourceShowPage from '../pages/admin/resources/show';
 import AdminResourceFormPage from '../pages/admin/resources/form';
@@ -42,6 +43,7 @@ const ROUTES: Record<string, { Page: Page; layouts: readonly 'app'[] }> = {
   'account/reset-password': { Page: ResetPasswordPage as Page, layouts: ['app'] },
   'account/confirm-email': { Page: ConfirmEmailPage as Page, layouts: ['app'] },
   'account/settings': { Page: SettingsPage as Page, layouts: ['app'] },
+  'account/api-tokens': { Page: ApiTokensPage as Page, layouts: ['app'] },
   // The admin panel's three views, which draw every #[AdminResource] in it
   // (ADR 0152): App\Http\Resources\NoteResource, and each make:resource --panel=admin.
   'admin/resources/index': { Page: AdminResourceIndexPage as Page, layouts: ['app'] },

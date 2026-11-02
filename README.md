@@ -93,6 +93,17 @@ production set `APP_URL` (the https origin every link is built on and
 passkeys are made for), `APP_MAIL_FROM` and `TINVAR_MAIL_PROVIDER`: the app
 refuses to start without them.
 
+## API tokens
+
+`/account/api-tokens` lets a signed-in user make personal access tokens
+for a script of theirs (ADR 0159): named, scoped, optionally expiring,
+listed and revoked, the text shown once. A script calls an operation
+marked `#[RequiresScope]` at `POST /_api/{name}` with
+`Authorization: Bearer tvr_...`; the app declares one,
+`app/Http/Queries/RecentNotes.php` with `notes:read`. A token outlives a
+sign-in elsewhere, and ends when its user signs out everywhere, sets a new
+password or address, or turns two-factor off.
+
 ## The admin panel
 
 `/admin/notes` lists, searches, changes and deletes the notes: one class,

@@ -8,12 +8,15 @@ use App\Auth\Account\Users;
 use App\Auth\Admin\Admins;
 use App\Auth\Admin\RequireAdmin;
 use App\Config\AppConfig;
+use App\Http\Pages\Account\ApiTokenSettings;
 use App\Mail\Account\AccountMails;
 use Tinvar\Accounts\AccountLinks;
 use Tinvar\Accounts\AccountsKit;
 use Tinvar\Accounts\SessionCookie;
 use Tinvar\Accounts\StartSession;
 use Tinvar\Actions\ActionRegistry;
+use Tinvar\Api\ApiAccess;
+use Tinvar\Api\DatabaseApiTokens;
 use Tinvar\Attributes\OutboundPolicy;
 use Tinvar\Attributes\Queue as QueueOptions;
 use Tinvar\Auth\Authenticatable;
@@ -398,6 +401,10 @@ final class Kernel implements TestableApplication, Terminable
             // The admin panel: its guard runs before every page, action and
             // query in it, then each one's own checks.
             panelRegistry: self::panels(),
+            // API tokens (ADR 0159): /_api for every #[RequiresScope], held to
+            // each account's credential epoch, which signing in elsewhere
+            // leaves alone and signing out everywhere moves.
+            apiAccess: new ApiAccess(new DatabaseApiTokens($connection), $this->accounts->tokenHolders, maxPerUser: ApiTokenSettings::MAX_TOKENS),
             errorShell: new ErrorShell(name: self::NAME, logo: self::mark(), homeHref: '/', homeLabel: 'Go to the home page'),
             dev: $dev,
             toolbar: $toolbar,

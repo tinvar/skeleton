@@ -3,12 +3,13 @@ import * as stylex from '@stylexjs/stylex';
 import { Banner, Card, Heading, Text } from '@meridian/ui';
 import { space } from '@meridian/ui/tokens.stylex';
 import { Title } from '@tinvar/react/head';
+import { Link } from '@tinvar/react/link';
 import type { PageProps } from '../../types/generated';
 import { ChangeEmailForm, ChangePasswordForm } from '../../components/account/AccountForms';
 import { Passkeys, SignOutButton, TwoFactor } from '../../components/account/AccountSettings';
 import { ConfirmProvider } from '../../components/account/ConfirmIdentity';
 
-/** The account page: address, password, passkeys, two-factor and signing out everywhere. */
+/** The account page: address, password, passkeys, two-factor, API tokens and signing out everywhere. */
 export default function Page({ data }: PageProps<'account/settings'>) {
   return (
     <div {...stylex.props(styles.page)}>
@@ -48,6 +49,11 @@ export default function Page({ data }: PageProps<'account/settings'>) {
         lead="We send a link to the new address; nothing changes until it is opened."
       >
         <ChangeEmailForm />
+      </Section>
+      <Section title="API tokens" lead="Let a script of yours call the app's API as you.">
+        <Text>
+          <Link href="/account/api-tokens">Manage your API tokens</Link>
+        </Text>
       </Section>
       <Section title="Sessions" lead="Signed in somewhere you don't recognise? End every session at once.">
         <SignOutButton everywhere />
