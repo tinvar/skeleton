@@ -24,6 +24,7 @@ use Tinvar\Packages\SupplyChain;
 use Tinvar\Render\FragmentManifestProducer;
 use Tinvar\Routing\RouteRegistry;
 use Tinvar\Server\AssetRouteRules;
+use Tinvar\Testing\ResourceTestSource;
 
 /** The app's root: where composer.json, package.json and their lockfiles are. */
 const APP_ROOT = __DIR__ . '/..';
@@ -42,6 +43,8 @@ $console = new AppConsole(
     codegen: class_exists(CodegenCommand::class)
         ? static fn (array $arguments): int => CodegenCommand::of(APP_ROOT . '/resources/types', Kernel::classes())->run($arguments)
         : null,
+    // make:resource's test is tinvar/testing's, a dev dependency too.
+    resourceTest: class_exists(ResourceTestSource::class) ? ResourceTestSource::of(...) : null,
     // Discovery reads the classes under the Kernel's namespace, and
     // `discover`, `build` and `check` its manifest in dist/. make:page,
     // make:query, make:action and make:model write classes it finds, and a
