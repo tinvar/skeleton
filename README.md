@@ -108,7 +108,12 @@ npx vitest run
 npm run lint
 bin/tinvar codegen --check
 bin/tinvar check
+bin/tinvar doctor
 ```
+
+`bin/tinvar doctor` checks everything the app needs to boot and serve, with
+this machine's environment, and reports every problem at once, each with
+its fix; `--fix` does the safe ones.
 
 `bin/tinvar check` holds every page, query and action to the security
 model's build rules -- every model input is authorized, or says why not --
@@ -123,6 +128,9 @@ malformed stops the server with the variable named, never its value. A
 secret is typed `Tinvar\Config\Secret`, which no dump, log or render shows.
 `bin/tinvar config` lists every key and where its value came from, with
 secrets hidden; `.env.example` lists them with nothing secret filled in.
+On a developer's machine `bin/tinvar` reads `.env` into its environment
+first, never over a variable you set and never a variable named like a
+secret: name a secret's file in its `_FILE` variable instead.
 The app key is `TINVAR_APP_KEY`, or the file
 `bin/tinvar setup` generated. `/_health`, `/_ready` and `/_metrics` let in
 the probe token alone, as `Authorization: Bearer <token>`: it is
@@ -150,7 +158,10 @@ docker compose up -d --build
 ```
 
 Put a TLS terminator in front: the cookies are `__Host-`, which browsers
-send over https alone.
+send over https alone. `bin/tinvar deploy:init fly` (or `render`,
+`railway`, `vps-systemd`, `vps-compose`) writes a platform's deployment,
+with its edge pinned as the trusted proxies, and generates its secrets
+outside the project.
 
 ## Licence
 
