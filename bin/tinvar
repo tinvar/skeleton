@@ -22,6 +22,7 @@ use Tinvar\Config\EnvironmentFile;
 use Tinvar\Orm\Connection;
 use Tinvar\Orm\Migrations\MigrationRefused;
 use Tinvar\Codegen\CodegenCommand;
+use Tinvar\Codegen\OpenApi\OpenApiCommand;
 use Tinvar\Console\AppConsole;
 use Tinvar\Http\ContentSecurityPolicyRules;
 use Tinvar\Packages\SupplyChain;
@@ -59,6 +60,12 @@ $console = new AppConsole(
     // tinvar/codegen is a dev dependency: a production install has none.
     codegen: class_exists(CodegenCommand::class)
         ? static fn (array $arguments): int => CodegenCommand::of(APP_ROOT . '/resources/types', Kernel::classes())->run($arguments)
+        : null,
+    // The app's public API -- whatever it marks #[RequiresScope] -- as an
+    // OpenAPI 3.1 document, which `build` writes into dist/ when there is one
+    // (ADR 0155). A dev dependency's too.
+    openapi: class_exists(OpenApiCommand::class)
+        ? static fn (array $arguments): int => OpenApiCommand::of(Kernel::NAME . ' API', Kernel::classes())->run($arguments)
         : null,
     // make:resource's test is tinvar/testing's, a dev dependency too.
     resourceTest: class_exists(ResourceTestSource::class) ? ResourceTestSource::of(...) : null,
