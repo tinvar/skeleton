@@ -49,6 +49,10 @@ final readonly class ApiTokenActions
                 ApiTokenChoice::Name, ApiTokenChoice::Count => 'name',
                 ApiTokenChoice::Scopes => 'scopes',
                 ApiTokenChoice::Expiry => 'lifetime',
+                // No field's fault: who is asking may not have one made (a
+                // token's caller, staff impersonating). The form shows it
+                // above its fields.
+                ApiTokenChoice::Caller => 'caller',
             };
 
             throw new ValidationException([$field => [$e->getMessage()]]);

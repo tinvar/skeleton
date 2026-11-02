@@ -66,6 +66,11 @@ export function CreateApiTokenForm({ scopes, lifetimes }: { scopes: Choice[]; li
                 {failure.detail}
               </Banner>
             )}
+            {slot.errors.caller && (
+              <Banner tone="bad" title="No token was made">
+                {slot.errors.caller}
+              </Banner>
+            )}
             <Field
               label="Name"
               hint="What the token is for, so you know which to revoke."
