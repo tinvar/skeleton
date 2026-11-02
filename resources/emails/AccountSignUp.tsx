@@ -2,7 +2,7 @@ import { Button, Divider, Heading, Layout, Text } from '@tinvar/mail';
 import type { AccountMailData } from '../types/generated';
 
 /**
- * The link that makes an account (ADR 0150). Opening it makes nothing --
+ * The link that makes an account (ADR 0151). Opening it makes nothing --
  * mail scanners open links too -- so the page it opens asks for a password
  * first.
  */

@@ -74,7 +74,7 @@ there who may.
 ## Accounts
 
 The app has accounts from the start, from the framework's accounts kit
-(`Tinvar\Accounts`, ADR 0150): signing up by a link to the address, signing
+(`Tinvar\Accounts`, ADR 0151): signing up by a link to the address, signing
 in by password or passkey, two-factor codes from an authenticator app with
 recovery codes, a forgotten and a changed password, a change of address by
 a link to the new one, and signing out everywhere. The pages are under

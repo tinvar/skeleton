@@ -16,7 +16,7 @@ use Tinvar\Http\Request;
 
 /**
  * Signing in -- by password, then a code where two-factor sign-in is on, or
- * by passkey -- and out (ADR 0150).
+ * by passkey -- and out (ADR 0151).
  *
  * Every one of them rotates the session id, so an id a visitor had before
  * -- one an attacker planted or saw -- never carries the change. A wrong

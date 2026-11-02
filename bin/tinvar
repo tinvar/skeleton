@@ -59,7 +59,7 @@ $console = new AppConsole(
 );
 
 // The queue's commands, over the app's Kernel (its `console`): queue:work
-// sends the account emails (ADR 0150), and the rest look after it.
+// sends the account emails (ADR 0151), and the rest look after it.
 foreach ([
     'queue:work' => ['queue:work [--queue=mail,default] [--sleep=S] [--max-jobs=N] [--max-time=S] [--memory=MB] [--timeout=S] [--stop-budget=S] [--stop-when-empty]', "Run the app's queued jobs -- its email among them -- until stopped"],
     'queue:failed' => ['queue:failed', 'Every job that failed for good, and why'],

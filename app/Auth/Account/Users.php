@@ -11,7 +11,7 @@ use Tinvar\Accounts\EmailTaken;
 use Tinvar\Orm\Orm;
 
 /**
- * The app's users, as the accounts kit reads and changes them (ADR 0150):
+ * The app's users, as the accounts kit reads and changes them (ADR 0151):
  * the one class that knows the kit's accounts are App\Database\Models\
  * Account\User rows. An app that keeps its people elsewhere -- another
  * table, another key -- changes this and the model, and nothing else.

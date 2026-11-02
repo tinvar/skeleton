@@ -14,7 +14,7 @@ use Tinvar\Http\Request;
 use Tinvar\Validation\ValidationException;
 
 /**
- * The account's passkeys (ADR 0150): adding one -- a challenge bound to
+ * The account's passkeys (ADR 0151): adding one -- a challenge bound to
  * this session and account, then the browser's answer verified for this
  * host -- and removing one. Signing in with one is SignInActions'.
  */

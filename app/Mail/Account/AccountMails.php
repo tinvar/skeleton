@@ -12,7 +12,7 @@ use Tinvar\Mail\Address;
 use Tinvar\Mail\Mailable;
 
 /**
- * What the app's account emails say (ADR 0150): the subject and template
+ * What the app's account emails say (ADR 0151): the subject and template
  * of each, drawn by resources/emails/ from AccountMailData. The accounts
  * kit decides when each goes and builds every link; change the words here
  * and in the templates.

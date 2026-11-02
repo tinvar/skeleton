@@ -10,7 +10,7 @@ use Tinvar\Orm\Schema\Table;
 use Tinvar\Queue\DatabaseQueue;
 
 /**
- * The accounts (ADR 0150) and the queue their email goes through.
+ * The accounts (ADR 0151) and the queue their email goes through.
  *
  * `users` is the app's own table, read through App\Auth\Account\Users;
  * everything else the accounts kit keeps -- sessions, auth epochs, emailed

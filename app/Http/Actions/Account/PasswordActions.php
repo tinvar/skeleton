@@ -17,7 +17,7 @@ use Tinvar\Http\Request;
 
 /**
  * A forgotten password, reset by an emailed link, and a known one changed
- * (ADR 0150). Either ends every other session the account has and moves its
+ * (ADR 0151). Either ends every other session the account has and moves its
  * auth epoch, so every other device is signed out and every token and link
  * minted before stops counting; the owner is told by email.
  */
