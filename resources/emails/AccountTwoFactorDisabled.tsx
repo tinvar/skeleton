@@ -14,7 +14,9 @@ export default function AccountTwoFactorDisabled(props: AccountMailData) {
       <Button href={props.url}>Reset your password</Button>
       <Divider />
       <Text muted>
-        {"If you didn't do this, reset your password from the link above straight away, then turn two-factor sign-in on again."}
+        {
+          "If you didn't do this, reset your password from the link above straight away, then turn two-factor sign-in on again."
+        }
       </Text>
     </Layout>
   );

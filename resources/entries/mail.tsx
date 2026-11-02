@@ -3,6 +3,7 @@ import AccountAlreadyRegistered from '../emails/AccountAlreadyRegistered';
 import AccountEmailChange from '../emails/AccountEmailChange';
 import AccountEmailChanged from '../emails/AccountEmailChanged';
 import AccountPasskeyAdded from '../emails/AccountPasskeyAdded';
+import AccountPasskeyRemoved from '../emails/AccountPasskeyRemoved';
 import AccountPasswordChanged from '../emails/AccountPasswordChanged';
 import AccountPasswordReset from '../emails/AccountPasswordReset';
 import AccountSignUp from '../emails/AccountSignUp';
@@ -26,5 +27,6 @@ export const renderMail = createMailRenderer({
   'account-email-changed': AccountEmailChanged,
   'account-password-changed': AccountPasswordChanged,
   'account-passkey-added': AccountPasskeyAdded,
+  'account-passkey-removed': AccountPasskeyRemoved,
   'account-two-factor-disabled': AccountTwoFactorDisabled,
 });

@@ -23,6 +23,8 @@ use App\Kernel;
 use App\Mail\Account\AccountMails;
 use Tinvar\Accounts\AccountMailKind;
 use Tinvar\Accounts\Accounts;
+use Tinvar\Accounts\Passkeys\PasskeyStore;
+use Tinvar\Accounts\Passkeys\VerifiedRegistration;
 use Tinvar\Accounts\SendAccountMail;
 use Tinvar\Accounts\TwoFactor\Base32;
 use Tinvar\Accounts\TwoFactor\Totp;
@@ -361,6 +363,29 @@ it('tells the owner by email when a passkey is added, with the page to remove it
         ->and($sent[0]->isTo('ada@example.com'))->toBeTrue()
         ->and($sent[0]->props['url'])->toBe(ORIGIN . '/account')
         ->and($sent[0]->props['secondaryUrl'])->toBe(ORIGIN . '/password/forgot')
+        ->and($sent[0]->props['passkey'])->toBe('Laptop');
+});
+
+it('asks a signed-in session to confirm it is its owner before removing a passkey, and tells the owner', function () {
+    $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
+    $id = (string) $this->kernel->orm->connection()->select('SELECT id FROM users')[0]['id'];
+    // A passkey as one added earlier would be kept: the ceremony is the browser test's.
+    $store = new PasskeyStore($this->kernel->orm->connection());
+    $store->add($id, random_bytes(32), new VerifiedRegistration(random_bytes(16), 'key', -7, 0, str_repeat("\0", 16), true, false, false, 'none'), 'Laptop', []);
+    $passkey = $store->of($id)[0]->id;
+
+    $refused = $browser->action('account.removePasskey', ['id' => $passkey]);
+    expect($refused->status)->toBe(422)
+        ->and($refused->body())->toContain(json_encode(Accounts::CONFIRM_FIRST, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE))
+        ->and($this->kernel->orm->connection()->select('SELECT COUNT(*) AS n FROM passkeys')[0]['n'])->toBe(1);
+
+    $browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD]);
+    expect($browser->action('account.removePasskey', ['id' => $passkey])->status)->toBe(200)
+        ->and($this->kernel->orm->connection()->select('SELECT COUNT(*) AS n FROM passkeys')[0]['n'])->toBe(0);
+    work($this->kernel);
+    $sent = $this->mail->sent(AccountMails::PASSKEY_REMOVED);
+    expect($sent)->toHaveCount(1)
+        ->and($sent[0]->isTo('ada@example.com'))->toBeTrue()
         ->and($sent[0]->props['passkey'])->toBe('Laptop');
 });
 

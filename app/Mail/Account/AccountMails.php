@@ -26,6 +26,7 @@ final readonly class AccountMails implements AccountMailsContract
     public const string EMAIL_CHANGED = 'account-email-changed';
     public const string PASSWORD_CHANGED = 'account-password-changed';
     public const string PASSKEY_ADDED = 'account-passkey-added';
+    public const string PASSKEY_REMOVED = 'account-passkey-removed';
     public const string TWO_FACTOR_DISABLED = 'account-two-factor-disabled';
 
     public function signUp(string $email, string $name, string $url, int $minutes): Mailable
@@ -128,6 +129,22 @@ final readonly class AccountMails implements AccountMailsContract
             secondaryUrl: $resetUrl,
             email: $user->accountEmail(),
             reason: 'A passkey was added to the ' . Kernel::NAME . " account {$user->accountEmail()}.",
+            passkey: self::plain($passkeyName),
+        );
+    }
+
+    public function passkeyRemoved(AccountUser $user, string $passkeyName, string $accountUrl, string $resetUrl): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'A passkey was removed from your ' . Kernel::NAME . ' account',
+            self::PASSKEY_REMOVED,
+            $accountUrl,
+            name: $user->accountName(),
+            url: $accountUrl,
+            secondaryUrl: $resetUrl,
+            email: $user->accountEmail(),
+            reason: 'A passkey was removed from the ' . Kernel::NAME . " account {$user->accountEmail()}.",
             passkey: self::plain($passkeyName),
         );
     }

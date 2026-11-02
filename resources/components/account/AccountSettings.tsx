@@ -88,7 +88,7 @@ export function SignOutButton({ everywhere = false }: { everywhere?: boolean }) 
 
 /**
  * The account's passkeys: each listed with a way to remove it, and one to
- * add another -- once this session has confirmed it is its owner's
+ * add another -- either once this session has confirmed it is its owner's
  * (useConfirm()). The ceremony itself is the browser's; the answer is
  * posted through a form state (useForm), so the page follows it -- the
  * action re-renders the list -- as a submitted form's would.
@@ -133,6 +133,7 @@ export function Passkeys({ passkeys }: { passkeys: PasskeyData[] }) {
 
   const remove = async (id: string) => {
     setFailure(null);
+    if (!(await confirmFirst())) return;
     form.transform(() => ({ id }));
     await form.submit(removePasskey, failed('The passkey was not removed. Try again.'));
   };

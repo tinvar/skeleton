@@ -13,7 +13,7 @@
 // it's them by password first, and told by email -- sign out and back in
 // with it, turn two-factor on -- confirming by the passkey -- sign in by
 // password and a recovery code, change the password, move to a new address
-// by its link, reset a forgotten password, remove the passkey, sign out
+// by its link, reset a forgotten password, remove the passkey (confirmed, and told by email), sign out
 // everywhere.
 
 import { createHmac } from 'node:crypto';
@@ -229,9 +229,14 @@ try {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForURL(`${base}/account`);
 
-  step('remove the passkey');
+  step('remove the passkey, confirming it is you by password first, and hear of it by email');
+  before = mailCount();
   await page.getByRole('button', { name: 'Remove Laptop' }).click();
+  const removeDialog = page.getByRole('dialog', { name: "Confirm it's you" });
+  await removeDialog.getByLabel('Your password').fill('yet another passphrase');
+  await removeDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expectText(page, 'No passkeys yet');
+  await mailWithSubject(newEmail, 'A passkey was removed', before);
 
   step('sign out everywhere');
   const other = await browser.newContext();

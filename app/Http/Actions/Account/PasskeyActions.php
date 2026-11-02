@@ -17,8 +17,8 @@ use Tinvar\Validation\ValidationException;
  * The account's passkeys (ADR 0153): adding one -- once the session was
  * confirmed in the last five minutes (ConfirmActions), a challenge bound to
  * this session and account, then the browser's answer verified for this
- * host, and the owner told by email -- and removing one. Signing in with
- * one is SignInActions'.
+ * host, and the owner told by email -- and removing one, confirmed and
+ * told the same way. Signing in with one is SignInActions'.
  */
 final readonly class PasskeyActions
 {
@@ -39,10 +39,11 @@ final readonly class PasskeyActions
         return ActionResult::revalidate('account.settings');
     }
 
+    /** Removes one, once the session was confirmed in the last five minutes; the owner is told by email. */
     #[Action(name: 'account.removePasskey')]
-    public function removePasskey(RemovePasskeyRequest $request): ActionResult
+    public function removePasskey(RemovePasskeyRequest $request, Request $http): ActionResult
     {
-        if (!$this->accounts->removePasskey($this->user->get(), $request->id)) {
+        if (!$this->accounts->removePasskey($http, $this->user->get(), $request->id)) {
             throw new ValidationException(['id' => ['That passkey is not on your account any more. Reload the page to see the ones that are.']]);
         }
 
