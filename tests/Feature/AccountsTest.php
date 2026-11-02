@@ -494,15 +494,39 @@ it('lists, creates once and revokes API tokens, which outlive a sign-in elsewher
     $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
     $browser->get('/account/api-tokens');
     expect($browser->page('tokens'))->toBe([])
-        ->and(array_column($browser->page('scopes'), 'value'))->toBe(['notes:read']);
+        ->and(array_column($browser->page('scopes'), 'value'))->toBe(['notes:read'])
+        ->and($browser->page('confirmedUntil'))->toBeNull();
 
-    // A scope the API does not declare is refused, by its field.
-    expect($browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:write'], 'lifetime' => '30'])->status)->toBe(422);
+    // A signed-in session alone -- a stolen cookie -- makes no token: a
+    // token outlives the session, so the owner confirms it is them first.
+    $unconfirmed = $browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:read'], 'lifetime' => '30']);
+    expect($unconfirmed->status)->toBe(422)
+        ->and(json_decode($unconfirmed->body(), true)['errors'] ?? null)->toBe(['confirm' => [Accounts::CONFIRM_FIRST]])
+        ->and($this->kernel->orm->connection()->select('SELECT id FROM api_tokens'))->toBe([]);
+    expect($browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD])->status)->toBe(200);
+    $browser->get('/account/api-tokens');
+    expect($browser->page('confirmedUntil'))->toBeInt()->toBeGreaterThan(time());
+
+    // A scope the API does not declare is refused, by its field; and a
+    // token lasts a year at most, so none that never expires is offered.
+    expect($browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:write'], 'lifetime' => '30'])->status)->toBe(422)
+        ->and(array_column($browser->page('lifetimes'), 'value'))->toBe(['30', '90', '365'])
+        ->and($browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:read'], 'lifetime' => 'never'])->status)->toBe(422);
 
     $created = $browser->action('account.createApiToken', ['name' => 'Export', 'scopes' => ['notes:read'], 'lifetime' => '30']);
     expect($created->status)->toBe(200);
     $token = (string) (json_decode($created->body(), true)['value']['token'] ?? '');
     expect($token)->toStartWith('tvr_');
+
+    // The owner hears of it by email, by its name -- never its text.
+    work($this->kernel);
+    $told = $this->mail->sent(AccountMails::API_TOKEN_CREATED);
+    expect($told)->toHaveCount(1)
+        ->and($told[0]->isTo('ada@example.com'))->toBeTrue()
+        ->and($told[0]->props['tokenName'])->toBe('Export')
+        ->and($told[0]->props['url'])->toBe(ORIGIN . '/account/api-tokens')
+        ->and($told[0]->props['secondaryUrl'])->toBe(ORIGIN . '/password/forgot')
+        ->and(json_encode($told[0]->props))->not->toContain(substr($token, 37));
 
     // Listed by name, never its text.
     $browser->get('/account/api-tokens');
@@ -522,6 +546,7 @@ it('lists, creates once and revokes API tokens, which outlive a sign-in elsewher
 
     // And revoking one ends it at once.
     $browser->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD]);
+    $browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD]);
     $second = (string) (json_decode($browser->action('account.createApiToken', ['name' => 'Second', 'scopes' => ['notes:read']])->body(), true)['value']['token'] ?? '');
     expect(api($this->kernel, $second, 'recentNotes')->status)->toBe(200);
     $browser->get('/account/api-tokens');

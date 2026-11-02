@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Pages\Account;
 
+use App\Auth\Account\CurrentUser;
 use App\Http\Data\Account\ApiTokenChoiceData;
 use App\Http\Data\Account\ApiTokenData;
 use App\Http\Data\Account\ApiTokensPageData;
 use App\Http\Data\Account\TokenLifetime;
+use Tinvar\Accounts\Accounts;
 use Tinvar\Accounts\RequireSignIn;
 use Tinvar\Api\ApiTokens;
 use Tinvar\Attributes\Middleware;
 use Tinvar\Attributes\Page;
+use Tinvar\Http\Request;
 
 /**
  * The signed-in account's API tokens (ADR 0159): each one it holds, with
@@ -23,6 +26,11 @@ use Tinvar\Attributes\Page;
  * once. The scopes offered are those the app's API declares with
  * #[RequiresScope] (ApiTokens::grantable()), described by SCOPES; one the
  * API declares that SCOPES does not describe is offered by its name.
+ *
+ * Making one asks the session to confirm it is its owner's first -- the
+ * "Confirm it's you" dialog the account page uses for passkeys -- so the
+ * page says until when the last confirmation counts, and which ways the
+ * account can confirm.
  *
  * A token is held to the account's credential epoch (the accounts kit's
  * $tokenHolders, which the Kernel hands ApiAccess): signing in elsewhere
@@ -40,10 +48,12 @@ final readonly class ApiTokenSettings
         'notes:read' => 'Read the notes',
     ];
 
-    public function __construct(private ApiTokens $tokens) {}
+    public function __construct(private ApiTokens $tokens, private Accounts $accounts, private CurrentUser $user) {}
 
-    public function __invoke(): ApiTokensPageData
+    public function __invoke(Request $request): ApiTokensPageData
     {
+        $user = $this->user->get();
+
         return new ApiTokensPageData(
             tokens: array_map(static function (array $listed): ApiTokenData {
                 [$token, $status] = $listed;
@@ -68,6 +78,9 @@ final readonly class ApiTokenSettings
                 TokenLifetime::cases(),
             ),
             maxTokens: self::MAX_TOKENS,
+            confirmedUntil: $this->accounts->confirmedUntil($request),
+            hasPasskeys: $this->accounts->passkeys($user) !== [],
+            twoFactorEnabled: $this->accounts->twoFactorEnabled($user),
         );
     }
 }

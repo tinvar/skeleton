@@ -4,19 +4,28 @@ declare(strict_types=1);
 
 namespace App\Http\Actions\Account;
 
+use App\Auth\Account\CurrentUser;
 use App\Http\Data\Account\IssuedApiTokenData;
 use App\Http\Requests\Account\CreateApiTokenRequest;
 use Carbon\CarbonImmutable;
+use Tinvar\Accounts\Accounts;
 use Tinvar\Actions\ActionResult;
 use Tinvar\Api\ApiTokenChoice;
 use Tinvar\Api\ApiTokenRefused;
 use Tinvar\Api\ApiTokens;
 use Tinvar\Attributes\Action;
+use Tinvar\Http\Request;
 use Tinvar\Validation\ValidationException;
 
 /**
  * The account's API tokens, from the API tokens page (ADR 0159): issue
  * one, revoke one.
+ *
+ * Issuing one goes through the accounts kit (Accounts::issueApiToken()):
+ * it asks the session to have confirmed it is its owner's in the last five
+ * minutes, as adding a passkey does (ConfirmActions), and tells the owner by
+ * email. A token outlives the session and every sign-in, so a session alone
+ * -- a stolen cookie -- may not make one.
  *
  * No model is named, so no #[Authorize] names one: ApiTokens acts for the
  * user signed in and for nobody else -- it issues a token to them, lists
@@ -26,14 +35,14 @@ use Tinvar\Validation\ValidationException;
  */
 final readonly class ApiTokenActions
 {
-    public function __construct(private ApiTokens $tokens) {}
+    public function __construct(private ApiTokens $tokens, private Accounts $accounts, private CurrentUser $user) {}
 
     /**
      * Issues a token, and answers with its text: the only time it is shown.
      * The page that asked shows it from this answer; nothing else keeps it.
      */
     #[Action(name: 'account.createApiToken')]
-    public function create(CreateApiTokenRequest $request): ActionResult
+    public function create(CreateApiTokenRequest $request, Request $http): ActionResult
     {
         $scopes = array_values(array_filter($request->scopes, \is_string(...)));
         if (\count($scopes) !== \count($request->scopes)) {
@@ -41,7 +50,7 @@ final readonly class ApiTokenActions
         }
 
         try {
-            $issued = $this->tokens->issue($request->name, $scopes, $request->lifetime->expiresAt(CarbonImmutable::now('UTC')));
+            $issued = $this->accounts->issueApiToken($http, $this->user->get(), $this->tokens, $request->name, $scopes, $request->lifetime->expiresAt(CarbonImmutable::now('UTC')));
         } catch (ApiTokenRefused $e) {
             // ApiTokens' own words, written for the user choosing, by the
             // field of the form they are about.

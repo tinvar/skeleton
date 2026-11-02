@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Banner, Button, Checkbox, CodeBlock, Field, Input, Select } from '@meridian/ui';
 import { space } from '@meridian/ui/tokens.stylex';
 import { Form, type HttpFailure } from '@tinvar/react/form';
 import { create as createApiToken, revoke as revokeApiToken } from '@actions/ApiTokenActions';
 import { describe } from './AccountForms';
+import { useConfirm } from './ConfirmIdentity';
 
 /*
  * The account's API tokens (ADR 0159): issuing one, which answers with its
- * text once, and revoking one.
+ * text once, and revoking one. Issuing asks this session to confirm it is
+ * its owner's first (useConfirm(), ADR 0153): a token outlives the session,
+ * so a signed-in session alone may not make one.
  */
 
 type Choice = { value: string; label: string };
@@ -29,10 +32,28 @@ function isIssued(value: unknown): value is Issued {
   );
 }
 
-/** Issue a token: a name, its scopes, how long it lasts. */
+/** Issue a token: a name, its scopes, how long it lasts -- once the session is confirmed. */
 export function CreateApiTokenForm({ scopes, lifetimes }: { scopes: Choice[]; lifetimes: Choice[] }) {
   const [failure, setFailure] = useState<Failure | null>(null);
   const [issued, setIssued] = useState<Issued | null>(null);
+  const { confirmFirst, refusedForConfirmation } = useConfirm();
+  // Whether the next submission was confirmed: a submission waits for the
+  // dialog, then goes again by itself.
+  const formId = useId();
+  const confirmed = useRef(false);
+  const beforeSubmit = () => {
+    if (confirmed.current) {
+      confirmed.current = false;
+      return true;
+    }
+    setFailure(null);
+    void confirmFirst().then((ok) => {
+      if (!ok) return;
+      confirmed.current = true;
+      (document.getElementById(formId) as HTMLFormElement | null)?.requestSubmit();
+    });
+    return false;
+  };
 
   return (
     <div {...stylex.props(styles.stack)}>
@@ -47,13 +68,16 @@ export function CreateApiTokenForm({ scopes, lifetimes }: { scopes: Choice[]; li
         </Banner>
       )}
       <Form
+        id={formId}
         noValidate
         resetOnSuccess
         onStart={() => {
           setFailure(null);
           setIssued(null);
         }}
+        onBefore={beforeSubmit}
         onSuccess={(result) => setIssued(isIssued(result.value) ? result.value : null)}
+        onError={(errors) => void refusedForConfirmation(errors)}
         onHttpException={(f: HttpFailure) => setFailure(describe(f))}
         onNetworkError={() => setFailure(describe(null))}
         {...stylex.props(styles.stack)}

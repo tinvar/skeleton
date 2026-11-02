@@ -1,4 +1,5 @@
 import { createMailRenderer } from '@tinvar/mail/render';
+import AccountApiTokenCreated from '../emails/AccountApiTokenCreated';
 import AccountAlreadyRegistered from '../emails/AccountAlreadyRegistered';
 import AccountEmailChange from '../emails/AccountEmailChange';
 import AccountEmailChanged from '../emails/AccountEmailChanged';
@@ -29,4 +30,5 @@ export const renderMail = createMailRenderer({
   'account-passkey-added': AccountPasskeyAdded,
   'account-passkey-removed': AccountPasskeyRemoved,
   'account-two-factor-disabled': AccountTwoFactorDisabled,
+  'account-api-token-created': AccountApiTokenCreated,
 });

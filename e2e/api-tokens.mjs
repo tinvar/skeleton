@@ -5,7 +5,8 @@
 //
 // bin/skeleton-proof runs it after e2e/admin.mjs. A person signs up by the
 // emailed link, opens the API tokens page from their account page, makes a
-// token for `notes:read` and copies it from the one place it is shown; a
+// token for `notes:read` -- confirming it is them by password first, and
+// hearing of it by email -- and copies it from the one place it is shown; a
 // script calls the API with it; signing in on another browser leaves it
 // working; then the person revokes it from the list, and the API refuses it.
 
@@ -48,6 +49,27 @@ async function linkFromMail(to, path) {
   fail(`No email to ${to} with a link to ${path} reached ${mailLog}.`);
 }
 
+/** Waits for an email to $to whose subject has $subject in it, after the first $after lines. */
+async function mailWithSubject(to, subject, after = 0) {
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    if (existsSync(mailLog)) {
+      const lines = readFileSync(mailLog, 'utf8').trim().split('\n').slice(after).filter(Boolean);
+      for (const line of lines) {
+        const message = JSON.parse(line);
+        if (message.to.some((address) => address.includes(to)) && String(message.subject).includes(subject))
+          return message;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  fail(`No email to ${to} about "${subject}" reached ${mailLog}.`);
+}
+
+function mailCount() {
+  return existsSync(mailLog) ? readFileSync(mailLog, 'utf8').trim().split('\n').filter(Boolean).length : 0;
+}
+
 /** What the API answers a script calling it with $token: the status, and the body. */
 async function callApi(token) {
   const response = await fetch(`${base}/_api/recentNotes`, {
@@ -88,14 +110,26 @@ try {
   await page.waitForURL(`${base}/account/api-tokens`);
   await expectText(page, 'No tokens yet');
 
-  step('make a token for notes:read, shown once');
+  step('make a token for notes:read, confirming it is you by password first, shown once');
+  const before = mailCount();
   await page.getByLabel('Name').fill('Nightly notes export');
   await page.locator('input[name="scopes[]"][value="notes:read"]').check();
   await page.getByRole('button', { name: 'Create token' }).click();
+  const confirmDialog = page.getByRole('dialog', { name: "Confirm it's you" });
+  await confirmDialog.waitFor();
+  await confirmDialog.getByLabel('Your password').fill(PASSWORD);
+  await confirmDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
   const shown = page.locator('pre, code').filter({ hasText: /^tvr_/ }).first();
   await shown.waitFor({ timeout: 15_000 });
   const token = (await shown.textContent())?.trim() ?? '';
   if (!/^tvr_[0-9a-f]{32}_[0-9A-Za-z]{43}$/.test(token)) fail(`The token shown is not a token: ${token}`);
+
+  step('hear of it by email, by its name and never its text');
+  const told = await mailWithSubject(email, 'An API token was created', before);
+  if (!`${told.text}`.includes('Nightly notes export'))
+    fail('The email about the new token does not name it.');
+  if (`${told.text}\n${told.html}`.includes(token.slice(37)))
+    fail('The email about the new token carries its text.');
 
   step('a script calls the API with it');
   const called = await callApi(token);

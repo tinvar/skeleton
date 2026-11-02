@@ -23,5 +23,7 @@ final readonly class AccountMailData extends Data
         public string $reason,
         // What a passkey just added is called, for the email that says so.
         public string $passkey = '',
+        // What an API token just created is called -- its name, never its text.
+        public string $tokenName = '',
     ) {}
 }

@@ -15,8 +15,8 @@ import { passkeysSupported, signWithPasskey } from '../../lib/passkeys';
 import { describe, messageOf } from './AccountForms';
 
 /**
- * "Confirm it's you" (ADR 0153). Adding a passkey and turning two-factor on
- * need this session to have proved it is its owner's in the last five
+ * "Confirm it's you" (ADR 0153). Adding a passkey, turning two-factor on and
+ * creating an API token need this session to have proved it is its owner's in the last five
  * minutes -- a signed-in session alone may not, or a stolen cookie could
  * add a way back in that outlives it. The server decides; this asks first
  * when the page says the last confirmation has lapsed, and again whenever
@@ -127,7 +127,7 @@ export function ConfirmProvider({
         }}
         size="sm"
         title="Confirm it's you"
-        description="Adding a passkey or turning on two-factor sign-in changes how this account signs in, so we check it's you first. It lasts five minutes, on this device."
+        description="Adding a passkey, turning on two-factor sign-in or creating an API token changes how this account can be reached, so we check it's you first. It lasts five minutes, on this device."
         footer={
           <Button variant="secondary" onClick={() => finish(false)} disabled={busy}>
             Cancel

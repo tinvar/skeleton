@@ -18,12 +18,14 @@ import { Title } from '@tinvar/react/head';
 import { Link } from '@tinvar/react/link';
 import type { PageProps } from '../../types/generated';
 import { CreateApiTokenForm, RevokeApiTokenButton } from '../../components/account/ApiTokenForms';
+import { ConfirmProvider } from '../../components/account/ConfirmIdentity';
 
 /**
  * The account's API tokens (ADR 0159): what a script of the user's signs in
  * with to call the app's API. Each is listed by its name with where it
  * stands, never its text, which only the answer to creating it carries.
  * Signing out everywhere ends every one of them; signing in elsewhere does not.
+ * Making one asks "Confirm it's you" first, as adding a passkey does.
  */
 export default function Page({ data }: PageProps<'account/api-tokens'>) {
   return (
@@ -42,7 +44,13 @@ export default function Page({ data }: PageProps<'account/api-tokens'>) {
       </header>
 
       <Card variant="flat" title="New token" description="Choose only the scopes the script needs.">
-        <CreateApiTokenForm scopes={data.scopes} lifetimes={data.lifetimes} />
+        <ConfirmProvider
+          confirmedUntil={data.confirmedUntil}
+          hasPasskeys={data.hasPasskeys}
+          twoFactorEnabled={data.twoFactorEnabled}
+        >
+          <CreateApiTokenForm scopes={data.scopes} lifetimes={data.lifetimes} />
+        </ConfirmProvider>
       </Card>
 
       {data.tokens.length === 0 ? (

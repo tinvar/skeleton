@@ -28,6 +28,7 @@ final readonly class AccountMails implements AccountMailsContract
     public const string PASSKEY_ADDED = 'account-passkey-added';
     public const string PASSKEY_REMOVED = 'account-passkey-removed';
     public const string TWO_FACTOR_DISABLED = 'account-two-factor-disabled';
+    public const string API_TOKEN_CREATED = 'account-api-token-created';
 
     public function signUp(string $email, string $name, string $url, int $minutes): Mailable
     {
@@ -163,13 +164,29 @@ final readonly class AccountMails implements AccountMailsContract
         );
     }
 
-    private function email(Address $to, string $subject, string $template, string $anyUrl, string $name, string $url, string $email, string $reason, string $secondaryUrl = '', int $minutes = 0, string $passkey = ''): AccountEmail
+    public function apiTokenCreated(AccountUser $user, string $tokenName, string $tokensUrl, string $resetUrl): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'An API token was created on your ' . Kernel::NAME . ' account',
+            self::API_TOKEN_CREATED,
+            $tokensUrl,
+            name: $user->accountName(),
+            url: $tokensUrl,
+            secondaryUrl: $resetUrl,
+            email: $user->accountEmail(),
+            reason: 'An API token was created on the ' . Kernel::NAME . " account {$user->accountEmail()}.",
+            tokenName: self::plain($tokenName),
+        );
+    }
+
+    private function email(Address $to, string $subject, string $template, string $anyUrl, string $name, string $url, string $email, string $reason, string $secondaryUrl = '', int $minutes = 0, string $passkey = '', string $tokenName = ''): AccountEmail
     {
         return new AccountEmail(
             $to,
             $subject,
             $template,
-            new AccountMailData(Kernel::NAME, $name, $url, $secondaryUrl, $minutes, $email, $reason, $passkey),
+            new AccountMailData(Kernel::NAME, $name, $url, $secondaryUrl, $minutes, $email, $reason, $passkey, $tokenName),
             // Every link in it is on the app's own origin.
             (string) preg_replace('#^(https?://[^/?\#]+).*\z#', '$1', $anyUrl),
         );
