@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * The accounts (ADR 0151), through the whole PHP request path -- the
+ * The accounts (ADR 0152), through the whole PHP request path -- the
  * session middleware, CSRF, the actions' throttles and validation, the
  * loaders -- and the queue worker, with the mail faked and read back.
  *

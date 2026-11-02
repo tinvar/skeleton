@@ -13,7 +13,7 @@ use Tinvar\Attributes\Action;
 use Tinvar\Http\Request;
 
 /**
- * Two-factor sign-in with an authenticator app (ADR 0151): set up -- a new
+ * Two-factor sign-in with an authenticator app (ADR 0152): set up -- a new
  * secret, on only once a code from it is typed -- turned off, and its
  * recovery codes replaced, each change but setup asking for the password.
  *

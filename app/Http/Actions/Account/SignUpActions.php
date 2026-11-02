@@ -13,7 +13,7 @@ use Tinvar\Attributes\PublicAccess;
 use Tinvar\Http\Request;
 
 /**
- * Signing up, in two steps (ADR 0151): an address and a name, then -- from
+ * Signing up, in two steps (ADR 0152): an address and a name, then -- from
  * the link emailed to that address -- a password, and the account is made.
  *
  * Asking answers the same whatever the address: an address that already
