@@ -93,6 +93,18 @@ production set `APP_URL` (the https origin every link is built on and
 passkeys are made for), `APP_MAIL_FROM` and `TINVAR_MAIL_PROVIDER`: the app
 refuses to start without them.
 
+## The admin panel
+
+`/admin/notes` lists, searches, changes and deletes the notes: one class,
+`app/Http/Resources/NoteResource.php`, an `#[AdminResource]` in the admin
+panel (ADR 0152), drawn by the panel's three views in
+`resources/pages/admin/resources/`. `Kernel::panels()` defines the panel,
+behind `App\Auth\Admin\RequireAdmin`: a visitor is sent to sign in, and
+only the accounts `APP_ADMINS` names, comma-separated, are let in. With it
+unset, `bin/dev` lets every signed-in account in and everywhere else
+nobody may. `bin/tinvar make:resource Orders/Order --fields=... --panel=admin`
+adds a model's screens beside its own pages.
+
 `bin/tinvar make:page`, `make:query`, `make:action`, `make:model` and
 `make:migration` write the next ones into this layout, each registered by
 being there, and a page's view in `resources/entries/rsc.tsx`. Give a name
