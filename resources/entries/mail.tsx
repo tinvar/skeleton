@@ -6,6 +6,7 @@ import AccountPasskeyAdded from '../emails/AccountPasskeyAdded';
 import AccountPasswordChanged from '../emails/AccountPasswordChanged';
 import AccountPasswordReset from '../emails/AccountPasswordReset';
 import AccountSignUp from '../emails/AccountSignUp';
+import AccountTwoFactorDisabled from '../emails/AccountTwoFactorDisabled';
 
 /**
  * The email templates PHP may name, by the name its Mailable gives
@@ -25,4 +26,5 @@ export const renderMail = createMailRenderer({
   'account-email-changed': AccountEmailChanged,
   'account-password-changed': AccountPasswordChanged,
   'account-passkey-added': AccountPasskeyAdded,
+  'account-two-factor-disabled': AccountTwoFactorDisabled,
 });

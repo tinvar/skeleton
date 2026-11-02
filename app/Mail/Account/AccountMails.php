@@ -26,6 +26,7 @@ final readonly class AccountMails implements AccountMailsContract
     public const string EMAIL_CHANGED = 'account-email-changed';
     public const string PASSWORD_CHANGED = 'account-password-changed';
     public const string PASSKEY_ADDED = 'account-passkey-added';
+    public const string TWO_FACTOR_DISABLED = 'account-two-factor-disabled';
 
     public function signUp(string $email, string $name, string $url, int $minutes): Mailable
     {
@@ -128,6 +129,20 @@ final readonly class AccountMails implements AccountMailsContract
             email: $user->accountEmail(),
             reason: 'A passkey was added to the ' . Kernel::NAME . " account {$user->accountEmail()}.",
             passkey: self::plain($passkeyName),
+        );
+    }
+
+    public function twoFactorDisabled(AccountUser $user, string $resetUrl): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'Two-factor sign-in was turned off on your ' . Kernel::NAME . ' account',
+            self::TWO_FACTOR_DISABLED,
+            $resetUrl,
+            name: $user->accountName(),
+            url: $resetUrl,
+            email: $user->accountEmail(),
+            reason: 'Two-factor sign-in was turned off on the ' . Kernel::NAME . " account {$user->accountEmail()}.",
         );
     }
 

@@ -398,6 +398,27 @@ it('turns two-factor on with a code, then asks for one at sign-in, each good onc
         ->and($phone->action('account.regenerateRecoveryCodes', ['currentPassword' => PASSWORD])->status)->toBe(200);
 });
 
+it('turns two-factor off with the password, signing out every other device, and tells the owner', function () {
+    $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
+    $browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD]);
+    $browser->action('account.beginTwoFactor');
+    $browser->get('/account');
+    $secret = (string) Base32::decode((string) ($browser->page('twoFactorSetup')['secret'] ?? ''));
+    $codes = json_decode($browser->action('account.confirmTwoFactor', ['code' => Totp::at($secret, time())])->body(), true)['value']['recoveryCodes'] ?? [];
+    $phone = new Browser($this->kernel, '192.0.2.85');
+    $phone->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD]);
+    $phone->action('account.completeSecondFactor', ['code' => $codes[0]]);
+    expect(signedInAs($phone))->toBe('ada@example.com');
+
+    expect($browser->action('account.disableTwoFactor', ['currentPassword' => 'a guess'])->status)->toBe(422)
+        ->and(signedInAs($phone))->toBe('ada@example.com');
+    expect($browser->action('account.disableTwoFactor', ['currentPassword' => PASSWORD])->status)->toBe(200)
+        ->and(signedInAs($browser))->toBe('ada@example.com')
+        ->and(signedInAs($phone))->toBeNull();
+    work($this->kernel);
+    $this->mail->assertSentTo('ada@example.com', AccountMails::TWO_FACTOR_DISABLED);
+});
+
 it('signs out everywhere, and a session ended elsewhere signs nobody in', function () {
     $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
     $other = new Browser($this->kernel, '192.0.2.90');
