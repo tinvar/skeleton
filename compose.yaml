@@ -1,6 +1,6 @@
 # The app's image, run as it is meant to run. From the app's root:
 #
-#   cp .env.example .env     # then fill in APP_KEY and APP_PROBE_TOKEN
+#   cp .env.example .env     # then fill in APP_KEY, APP_PROBE_TOKEN and APP_TRUSTED_PROXY_SECRET
 #   docker compose build
 #   docker compose up -d
 #
@@ -9,6 +9,16 @@
 # PHP's user (uid 10001) alone read access, and name it in
 # TINVAR_APP_KEY_FILE. The entrypoint refuses to start without a key, and if
 # the renderers' user could read it.
+#
+# A TLS terminator goes in front (the cookies are __Host-), and must prove
+# itself with APP_TRUSTED_PROXY_SECRET in X-Tinvar-Proxy, overwriting any a
+# client sent (ADR 0134). On the host, with Caddy:
+#
+#   app.example.com {
+#       reverse_proxy 127.0.0.1:8080 {
+#           header_up X-Tinvar-Proxy {env.APP_TRUSTED_PROXY_SECRET}
+#       }
+#   }
 
 services:
   app:
@@ -30,6 +40,12 @@ services:
       # visitor's flood refused them all. The network below, pinned to say which;
       # change both together. Empty, and the peer is the client.
       TINVAR_TRUSTED_PROXIES: ${APP_TRUSTED_PROXIES:-10.213.91.0/24}
+      # What the terminator must also send, in X-Tinvar-Proxy, to be taken
+      # for one -- the subnet's gateway is also where a published port's
+      # userland proxy connects from, for anything on the host. Required,
+      # since the range above is wider than one address: the app refuses to
+      # boot without it. 32 characters or more.
+      TINVAR_TRUSTED_PROXY_SECRET: ${APP_TRUSTED_PROXY_SECRET:?set APP_TRUSTED_PROXY_SECRET, 32 characters or more (openssl rand -hex 32), and have the terminator send it in X-Tinvar-Proxy}
     # Loopback only: put a TLS terminator in front, since the cookies are
     # __Host- and the browser sends them over https alone.
     ports:
