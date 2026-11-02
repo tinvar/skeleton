@@ -1,4 +1,4 @@
-// The skeleton's accounts in a real browser (ADR 0152), against an app
+// The skeleton's accounts in a real browser (ADR 0153), against an app
 // bin/serve is serving, its queue worker beside it and its mail in the log:
 //
 //   node e2e/accounts.mjs http://localhost:PORT path/to/database/app.sqlite-mail.log

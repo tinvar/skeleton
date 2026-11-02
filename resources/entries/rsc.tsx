@@ -30,7 +30,7 @@ type Page = (props: { data: never; params: never }) => ReactNode;
  */
 const ROUTES: Record<string, { Page: Page; layouts: readonly 'app'[] }> = {
   'app/home': { Page: HomePage as Page, layouts: ['app'] },
-  // The accounts (ADR 0152): App\Http\Pages\Account.
+  // The accounts (ADR 0153): App\Http\Pages\Account.
   'account/sign-up': { Page: SignUpPage as Page, layouts: ['app'] },
   'account/complete-sign-up': { Page: CompleteSignUpPage as Page, layouts: ['app'] },
   'account/sign-in': { Page: SignInPage as Page, layouts: ['app'] },

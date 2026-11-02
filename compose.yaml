@@ -33,7 +33,7 @@ services:
       # without the token, and the entrypoint refuses to serve with none.
       TINVAR_PROBE_TOKEN: ${APP_PROBE_TOKEN:?set APP_PROBE_TOKEN, 32 characters or more (openssl rand -hex 24)}
       TINVAR_PROBE_TRUST_LOOPBACK: "0"
-      # The accounts (ADR 0152): the https origin every emailed link is
+      # The accounts (ADR 0153): the https origin every emailed link is
       # built on and passkeys are made for, who the mail is from, and where
       # it goes -- each required, the boot stopping without it.
       APP_URL: ${APP_URL:?set APP_URL, the https origin the app is served on, as https://app.example}

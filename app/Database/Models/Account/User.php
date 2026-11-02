@@ -18,7 +18,7 @@ use Tinvar\Orm\Model;
  * -- a column, a relation -- and the kit carries on as it was.
  *
  * Every user's address was verified before the row existed: an account is
- * made only from a sign-up link that reached it (ADR 0152), so there is no
+ * made only from a sign-up link that reached it (ADR 0153), so there is no
  * unverified state to keep.
  */
 #[Table('users')]

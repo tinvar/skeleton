@@ -14,7 +14,7 @@ use Tinvar\Attributes\PublicAccess;
 use Tinvar\Http\Request;
 
 /**
- * Moving an account to a new address (ADR 0152): asked for while signed in,
+ * Moving an account to a new address (ADR 0153): asked for while signed in,
  * with the password, and done from the link sent to the new address -- so
  * nothing changes until that address is shown to be read. The old address
  * is told.

@@ -18,7 +18,7 @@ import { confirmEmailChange, requestEmailChange } from '@actions/EmailActions';
 import { passkeysSupported, signWithPasskey } from '../../lib/passkeys';
 
 /**
- * The account forms (ADR 0152). Each is a real form posting to its action,
+ * The account forms (ADR 0153). Each is a real form posting to its action,
  * so it works before script loads: a mistake comes back as the page with
  * its errors on the fields. Once hydrated it submits in place.
  *

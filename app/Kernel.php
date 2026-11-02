@@ -123,7 +123,7 @@ use App\Auth\Flashes;
  * the reset contract, exception classification and the error pages -- and
  * this class adds what is the app's own: its accounts -- the session, sign-up
  * and sign-in, passkeys and two-factor, from the framework's accounts kit
- * (Tinvar\Accounts, ADR 0152) -- its queue and mail, and turning a loaded
+ * (Tinvar\Accounts, ADR 0153) -- its queue and mail, and turning a loaded
  * route into a render.
  *
  * What you add registers itself: a #[Page] or #[Layout], a #[Query], a
@@ -162,7 +162,7 @@ final class Kernel implements TestableApplication, Terminable
     public readonly RouteRegistry $routes;
     public readonly ActionRegistry $actions;
 
-    /** The accounts kit: the session, sign-in and every account flow (ADR 0152). */
+    /** The accounts kit: the session, sign-in and every account flow (ADR 0153). */
     public readonly AccountsKit $accounts;
 
     /** Where jobs wait: the jobs table, beside the rows they are about. */
@@ -328,7 +328,7 @@ final class Kernel implements TestableApplication, Terminable
             $telemetry,
         );
 
-        // The accounts (ADR 0152): the users in App\Database\Models\Account\User
+        // The accounts (ADR 0153): the users in App\Database\Models\Account\User
         // through App\Auth\Account\Users, their email in App\Mail\Account,
         // every link built on APP_URL, and sign-in guesses counted where a
         // flood cannot clear them.
@@ -378,7 +378,7 @@ final class Kernel implements TestableApplication, Terminable
             manifest: $this->manifest,
             partialReloads: true,
             // Every request's session, opened before anything reads who is
-            // signed in: the accounts kit's (ADR 0152).
+            // signed in: the accounts kit's (ADR 0153).
             globalMiddleware: [StartSession::class],
             // A form posted without script that fails is sent back to its
             // page with its errors, which wait for it here, by session.
