@@ -59,7 +59,7 @@ $console = new AppConsole(
     migrations: App\Database\Migrations::PATH,
     // tinvar/codegen is a dev dependency: a production install has none.
     codegen: class_exists(CodegenCommand::class)
-        ? static fn (array $arguments): int => CodegenCommand::of(APP_ROOT . '/resources/types', Kernel::classes())->run($arguments)
+        ? static fn (array $arguments): int => CodegenCommand::of(APP_ROOT . '/resources/types', Kernel::classes(), Kernel::panels())->run($arguments)
         : null,
     // The app's public API -- whatever it marks #[RequiresScope] -- as an
     // OpenAPI 3.1 document, which `build` writes into dist/ when there is one
