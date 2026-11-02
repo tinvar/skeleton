@@ -19,6 +19,9 @@ import ForgotPasswordPage from '../pages/account/forgot-password';
 import ResetPasswordPage from '../pages/account/reset-password';
 import ConfirmEmailPage from '../pages/account/confirm-email';
 import SettingsPage from '../pages/account/settings';
+import AdminResourceIndexPage from '../pages/admin/resources/index';
+import AdminResourceShowPage from '../pages/admin/resources/show';
+import AdminResourceFormPage from '../pages/admin/resources/form';
 import type { LayoutDataMap } from '../types/generated';
 
 type Page = (props: { data: never; params: never }) => ReactNode;
@@ -39,6 +42,11 @@ const ROUTES: Record<string, { Page: Page; layouts: readonly 'app'[] }> = {
   'account/reset-password': { Page: ResetPasswordPage as Page, layouts: ['app'] },
   'account/confirm-email': { Page: ConfirmEmailPage as Page, layouts: ['app'] },
   'account/settings': { Page: SettingsPage as Page, layouts: ['app'] },
+  // The admin panel's three views, which draw every #[AdminResource] in it
+  // (ADR 0152): App\Http\Resources\NoteResource, and each make:resource --panel=admin.
+  'admin/resources/index': { Page: AdminResourceIndexPage as Page, layouts: ['app'] },
+  'admin/resources/show': { Page: AdminResourceShowPage as Page, layouts: ['app'] },
+  'admin/resources/form': { Page: AdminResourceFormPage as Page, layouts: ['app'] },
   // A system page: no header, since the navigation might be what failed.
   'app/error': { Page: ErrorPage as Page, layouts: [] },
 };

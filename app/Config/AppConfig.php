@@ -60,6 +60,10 @@ final readonly class AppConfig
         public ?string $servedAt = null,
         // The address the app's email comes from; required in production.
         public ?string $mailFrom = null,
+        // The admin panel's accounts, by address, comma-separated, as
+        // `ada@example.com,grace@example.com`. Unset, `bin/dev` lets every
+        // signed-in account in, and anywhere else nobody (App\Auth\Admin\Admins).
+        public ?string $admins = null,
         // Where mail goes while no TINVAR_MAIL_PROVIDER is named, in
         // development: a file beside the database unless set.
         public ?string $mailLog = null,

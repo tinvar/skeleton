@@ -39,6 +39,8 @@ services:
       APP_URL: ${APP_URL:?set APP_URL, the https origin the app is served on, as https://app.example}
       APP_MAIL_FROM: ${APP_MAIL_FROM:?set APP_MAIL_FROM, the address the app's email comes from}
       TINVAR_MAIL_PROVIDER: ${APP_MAIL_PROVIDER:?set APP_MAIL_PROVIDER, the provider that sends the app's mail (smtp, ses, postmark, mailgun, resend or sendgrid), and its own variables}
+      # Who may open the admin panel; empty, nobody may.
+      APP_ADMINS: ${APP_ADMINS:-}
       # The proxies in front, whose X-Forwarded-For names the client the
       # throttles count (ADR 0134). Every visitor reaches this container
       # through the TLS terminator, by the network's gateway when it runs on

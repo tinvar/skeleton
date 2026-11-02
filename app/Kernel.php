@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App;
 
 use App\Auth\Account\Users;
+use App\Auth\Admin\Admins;
+use App\Auth\Admin\RequireAdmin;
 use App\Config\AppConfig;
 use App\Mail\Account\AccountMails;
 use Tinvar\Accounts\AccountLinks;
@@ -17,6 +19,8 @@ use Tinvar\Attributes\Queue as QueueOptions;
 use Tinvar\Auth\Authenticatable;
 use Tinvar\Auth\AuthContext;
 use Tinvar\Auth\PanelContext;
+use Tinvar\Auth\PanelDefinition;
+use Tinvar\Auth\PanelRegistry;
 use Tinvar\Auth\PolicyGate;
 use Tinvar\Auth\PolicyRegistry;
 use Tinvar\Cache\ApcuStore;
@@ -131,9 +135,11 @@ use App\Auth\Flashes;
  * class with #[Action] methods, a model, a #[Policy(Model::class)], a
  * #[Config] class -- each is discovered under App\ by what it declares,
  * whatever folder it is in (classes(), ADR 0146). `bin/tinvar check` holds
- * every one of them to the security model's build rules. The example shop
- * (examples/shop in the framework's repository) wires the rest -- panels,
- * live updates, uploads, static pages -- the same way.
+ * every one of them to the security model's build rules. One panel, the
+ * admin panel, is defined in panels(): an #[AdminResource] in it is a list,
+ * a record and its forms under /admin, for the accounts APP_ADMINS names.
+ * The example shop (examples/shop in the framework's repository) wires the
+ * rest -- live updates, uploads, static pages -- the same way.
  *
  * Its settings come from the environment, never a file in the project,
  * through a typed #[Config] class -- APP_DATABASE, APP_LOG and
@@ -257,7 +263,10 @@ final class Kernel implements TestableApplication, Terminable
         $container = (new Container())
             ->instance(Orm::class, $this->orm)
             ->instance(Throttle::class, $throttle)
-            ->instance(AuthContext::class, $auth);
+            ->instance(AuthContext::class, $auth)
+            // Who may open the admin panel: APP_ADMINS, or under `bin/dev`
+            // with it unset, every signed-in account (App\Auth\Admin\Admins).
+            ->instance(Admins::class, Admins::fromList(self::config()->admins, openInDev: $dev));
 
         // Every class the app registers, read once (ADR 0146).
         $classes = self::classes();
@@ -315,7 +324,7 @@ final class Kernel implements TestableApplication, Terminable
         // `bin/serve --worker` run that.
         $this->queue = $queue ?? new DatabaseQueue($connection);
         $jobSigner = new Signer($key, Envelope::PURPOSE);
-        $jobs = new Dispatcher($this->queue, $this->orm, $jobSigner, $auth, $panels);
+        $jobs = new Dispatcher($this->queue, $this->orm, $jobSigner, $auth, $panels, self::panels());
         $this->mailer = new Mailer(
             // fromEnvironment() hands in the environment's; built by hand,
             // the mail is kept in memory and goes nowhere.
@@ -386,6 +395,9 @@ final class Kernel implements TestableApplication, Terminable
             flashes: new Flashes($this->orm, $this->accounts->cookie),
             historyKeys: $historyKeys,
             panels: $panels,
+            // The admin panel: its guard runs before every page, action and
+            // query in it, then each one's own checks.
+            panelRegistry: self::panels(),
             errorShell: new ErrorShell(name: self::NAME, logo: self::mark(), homeHref: '/', homeLabel: 'Go to the home page'),
             dev: $dev,
             toolbar: $toolbar,
@@ -415,7 +427,7 @@ final class Kernel implements TestableApplication, Terminable
             scope: $this->http->scope,
             panels: $panels,
             queue: $this->queue,
-            runner: new JobRunner($this->orm, $jobSigner, $container->resolver(), $auth, $panels, users: $this->accounts->lookup),
+            runner: new JobRunner($this->orm, $jobSigner, $container->resolver(), $auth, $panels, self::panels(), users: $this->accounts->lookup),
             report: static function (\Throwable $e) use ($report): void {
                 $report($e, null);
             },
@@ -819,6 +831,18 @@ final class Kernel implements TestableApplication, Terminable
      * (ADR 0138). Take the entry out once they are published under a scope
      * the project holds.
      */
+    /**
+     * The app's panels: the admin panel, behind RequireAdmin. An
+     * #[AdminResource(panel: Admins::PANEL)] -- `bin/tinvar make:resource
+     * --panel=admin` writes one -- is drawn by the three views under
+     * resources/pages/admin/resources, and a page joins the panel with
+     * #[Panel(Admins::PANEL)].
+     */
+    public static function panels(): PanelRegistry
+    {
+        return new PanelRegistry(new PanelDefinition(Admins::PANEL, guard: RequireAdmin::class));
+    }
+
     public static function packages(): PackagePolicy
     {
         return new PackagePolicy(
