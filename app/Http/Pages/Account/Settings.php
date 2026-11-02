@@ -51,6 +51,7 @@ final class Settings
             twoFactorSetup: $setup === null ? null : new TwoFactorSetupData($setup['secret'], $setup['uri']),
             notice: \is_string($done) ? (self::NOTICES[$done] ?? null) : null,
             minLength: Passwords::MIN_LENGTH,
+            confirmedUntil: $this->accounts->confirmedUntil($request),
         );
     }
 }

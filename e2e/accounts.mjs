@@ -9,10 +9,12 @@
 // shows. On localhost, not 127.0.0.1: a passkey's relying party is a host
 // name, and the app's emailed links are built on localhost in development.
 //
-// Every step a person takes: sign up by the link, add a passkey, sign out
-// and back in with it, turn two-factor on, sign in by password and a
-// recovery code, change the password, move to a new address by its link,
-// reset a forgotten password, remove the passkey, sign out everywhere.
+// Every step a person takes: sign up by the link, add a passkey -- confirming
+// it's them by password first, and told by email -- sign out and back in
+// with it, turn two-factor on -- confirming by the passkey -- sign in by
+// password and a recovery code, change the password, move to a new address
+// by its link, reset a forgotten password, remove the passkey, sign out
+// everywhere.
 
 import { createHmac } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
@@ -53,6 +55,23 @@ async function linkFromMail(to, path, after = 0) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   fail(`No email to ${to} with a link to ${path} reached ${mailLog}.`);
+}
+
+/** Waits for an email to $to whose subject has $subject in it, after the first $after lines. */
+async function mailWithSubject(to, subject, after = 0) {
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    if (existsSync(mailLog)) {
+      const lines = readFileSync(mailLog, 'utf8').trim().split('\n').slice(after).filter(Boolean);
+      for (const line of lines) {
+        const message = JSON.parse(line);
+        if (message.to.some((address) => address.includes(to)) && String(message.subject).includes(subject))
+          return message;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  fail(`No email to ${to} about "${subject}" reached ${mailLog}.`);
 }
 
 function mailCount() {
@@ -121,10 +140,19 @@ try {
   await page.waitForURL(`${base}/account`);
   await expectText(page, `Signed in as Ada Lovelace, ${email}`);
 
-  step('add a passkey');
+  step('add a passkey, confirming it is you by password first, and hear of it by email');
+  let before = mailCount();
   await page.getByLabel('Name for the new passkey').fill('Laptop');
   await page.getByRole('button', { name: 'Add a passkey' }).click();
+  const confirmDialog = page.getByRole('dialog', { name: "Confirm it's you" });
+  await confirmDialog.waitFor();
+  await confirmDialog.getByLabel('Your password').fill('not the password');
+  await confirmDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await confirmDialog.getByText("That isn't your current password").waitFor();
+  await confirmDialog.getByLabel('Your password').fill(PASSWORD);
+  await confirmDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
   await page.getByRole('list', { name: 'Your passkeys' }).getByText('Laptop').waitFor();
+  await mailWithSubject(email, 'A passkey was added', before);
 
   step('sign out, and back in with the passkey');
   await signOut(page);
@@ -133,8 +161,13 @@ try {
   await page.waitForURL(`${base}/account`);
   await expectText(page, `Signed in as Ada Lovelace`);
 
-  step('turn two-factor on with a code from the secret');
+  step('turn two-factor on, confirming it is you by the passkey, with a code from the secret');
   await page.getByRole('button', { name: 'Set up two-factor sign-in' }).click();
+  await page
+    .getByRole('dialog', { name: "Confirm it's you" })
+    .getByRole('button', { name: 'Use a passkey' })
+    .click();
+  await page.getByLabel('Setup key').waitFor();
   const secret = (await page.getByLabel('Setup key').innerText()).trim();
   await page.getByLabel('Code from the app').fill(totp(secret));
   await page.getByRole('button', { name: 'Turn two-factor on' }).click();
@@ -167,7 +200,7 @@ try {
   await expectText(page, 'Your password is changed');
 
   step('move to a new address, by the link the new address gets');
-  let before = mailCount();
+  before = mailCount();
   const emailCard = page
     .locator('form')
     .filter({ has: page.getByRole('button', { name: 'Send a link to the new address' }) });

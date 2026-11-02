@@ -21,7 +21,9 @@ use App\Database\Migrations;
 use App\Database\Models\Account\User;
 use App\Kernel;
 use App\Mail\Account\AccountMails;
+use Tinvar\Accounts\AccountMailKind;
 use Tinvar\Accounts\Accounts;
+use Tinvar\Accounts\SendAccountMail;
 use Tinvar\Accounts\TwoFactor\Base32;
 use Tinvar\Accounts\TwoFactor\Totp;
 use Tinvar\Console\Output;
@@ -319,8 +321,52 @@ it('moves an account to a new address only from a link the new address got', fun
     expect(new Browser($this->kernel)->action('account.signIn', ['email' => 'ada@new.example', 'password' => PASSWORD])->status)->toBe(303);
 });
 
+it('asks a signed-in session to confirm it is its owner before adding a passkey or turning two-factor on', function () {
+    // A stolen session cookie: signed in, and nothing more.
+    $thief = signUp($this->kernel, $this->mail, 'ada@example.com');
+    $confirmFirst = json_encode(Accounts::CONFIRM_FIRST, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    foreach (['account.passkeyOptions' => [], 'account.beginTwoFactor' => [], 'account.confirmTwoFactor' => ['code' => '123456']] as $action => $body) {
+        $refused = $thief->action($action, $body);
+        expect($refused->status)->toBe(422, $action)
+            ->and($refused->body())->toContain($confirmFirst);
+    }
+    $thief->get('/account');
+    expect($thief->page('confirmedUntil'))->toBeNull()
+        ->and($thief->page('twoFactorSetup'))->toBeNull();
+    expect($thief->action('account.confirmWithPassword', ['currentPassword' => 'a guess'])->status)->toBe(422)
+        ->and($thief->action('account.passkeyOptions')->status)->toBe(422);
+
+    // The owner, typing the password again: the account page says until when.
+    $owner = $thief;
+    expect($owner->action('account.confirmWithPassword', ['currentPassword' => PASSWORD])->status)->toBe(200);
+    $owner->get('/account');
+    expect($owner->page('confirmedUntil'))->toBeInt()->toBeGreaterThan(time());
+    $options = $owner->action('account.passkeyOptions');
+    expect($options->status)->toBe(200)
+        ->and(json_decode($options->body(), true)['value']['rp']['id'] ?? null)->toBe('app.test');
+
+    // Confirmed on one device is confirmed on that one alone.
+    $phone = new Browser($this->kernel, '192.0.2.60');
+    $phone->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD]);
+    expect($phone->action('account.beginTwoFactor')->status)->toBe(422);
+});
+
+it('tells the owner by email when a passkey is added, with the page to remove it from', function () {
+    signUp($this->kernel, $this->mail, 'ada@example.com');
+    $id = (string) $this->kernel->orm->connection()->select('SELECT id FROM users')[0]['id'];
+    $this->kernel->accounts->accounts->deliver(new SendAccountMail(AccountMailKind::PasskeyAdded, name: 'Laptop', userId: $id));
+
+    $sent = $this->mail->sent(AccountMails::PASSKEY_ADDED);
+    expect($sent)->toHaveCount(1)
+        ->and($sent[0]->isTo('ada@example.com'))->toBeTrue()
+        ->and($sent[0]->props['url'])->toBe(ORIGIN . '/account')
+        ->and($sent[0]->props['secondaryUrl'])->toBe(ORIGIN . '/password/forgot')
+        ->and($sent[0]->props['passkey'])->toBe('Laptop');
+});
+
 it('turns two-factor on with a code, then asks for one at sign-in, each good once', function () {
     $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
+    $browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD]);
     $browser->action('account.beginTwoFactor');
     $browser->get('/account');
     $secret = Base32::decode((string) ($browser->page('twoFactorSetup')['secret'] ?? ''));
@@ -345,6 +391,11 @@ it('turns two-factor on with a code, then asks for one at sign-in, each good onc
     $laptop = new Browser($this->kernel, '192.0.2.81');
     $laptop->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD]);
     expect($laptop->action('account.completeSecondFactor', ['code' => $codes[0]])->status)->toBe(422);
+
+    // A code from the app confirms a session, as the password does; a recovery code does not.
+    expect($phone->action('account.confirmWithCode', ['code' => $codes[1]])->status)->toBe(422)
+        ->and($phone->action('account.confirmWithCode', ['code' => Totp::at((string) $secret, time() + Totp::PERIOD)])->status)->toBe(200)
+        ->and($phone->action('account.regenerateRecoveryCodes', ['currentPassword' => PASSWORD])->status)->toBe(200);
 });
 
 it('signs out everywhere, and a session ended elsewhere signs nobody in', function () {

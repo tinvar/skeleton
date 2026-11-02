@@ -6,6 +6,7 @@ import { Title } from '@tinvar/react/head';
 import type { PageProps } from '../../types/generated';
 import { ChangeEmailForm, ChangePasswordForm } from '../../components/account/AccountForms';
 import { Passkeys, SignOutButton, TwoFactor } from '../../components/account/AccountSettings';
+import { ConfirmProvider } from '../../components/account/ConfirmIdentity';
 
 /** The account page: address, password, passkeys, two-factor and signing out everywhere. */
 export default function Page({ data }: PageProps<'account/settings'>) {
@@ -23,16 +24,22 @@ export default function Page({ data }: PageProps<'account/settings'>) {
           {data.notice}
         </Banner>
       )}
-      <Section title="Passkeys" lead="Sign in without a password.">
-        <Passkeys passkeys={data.passkeys} />
-      </Section>
-      <Section title="Two-factor sign-in" lead="A code from an app as well as your password.">
-        <TwoFactor
-          enabled={data.twoFactorEnabled}
-          setup={data.twoFactorSetup}
-          recoveryCodesLeft={data.recoveryCodesLeft}
-        />
-      </Section>
+      <ConfirmProvider
+        confirmedUntil={data.confirmedUntil}
+        hasPasskeys={data.passkeys.length > 0}
+        twoFactorEnabled={data.twoFactorEnabled}
+      >
+        <Section title="Passkeys" lead="Sign in without a password.">
+          <Passkeys passkeys={data.passkeys} />
+        </Section>
+        <Section title="Two-factor sign-in" lead="A code from an app as well as your password.">
+          <TwoFactor
+            enabled={data.twoFactorEnabled}
+            setup={data.twoFactorSetup}
+            recoveryCodesLeft={data.recoveryCodesLeft}
+          />
+        </Section>
+      </ConfirmProvider>
       <Section title="Password" lead="Changing it signs out every other device.">
         <ChangePasswordForm minLength={data.minLength} />
       </Section>

@@ -18,6 +18,7 @@ import {
 import { createPasskey, passkeysSupported } from '../../lib/passkeys';
 import type { PasskeyData, TwoFactorSetupData } from '../../types/generated';
 import { describe, messageOf } from './AccountForms';
+import { useConfirm } from './ConfirmIdentity';
 
 /**
  * Signs out -- of this browser, or with `everywhere`, of every device --
@@ -87,9 +88,10 @@ export function SignOutButton({ everywhere = false }: { everywhere?: boolean }) 
 
 /**
  * The account's passkeys: each listed with a way to remove it, and one to
- * add another. The ceremony itself is the browser's; the answer is posted
- * through a form state (useForm), so the page follows it -- the action
- * re-renders the list -- as a submitted form's would.
+ * add another -- once this session has confirmed it is its owner's
+ * (useConfirm()). The ceremony itself is the browser's; the answer is
+ * posted through a form state (useForm), so the page follows it -- the
+ * action re-renders the list -- as a submitted form's would.
  */
 export function Passkeys({ passkeys }: { passkeys: PasskeyData[] }) {
   const [busy, setBusy] = useState(false);
@@ -99,15 +101,19 @@ export function Passkeys({ passkeys }: { passkeys: PasskeyData[] }) {
   const [supported, setSupported] = useState(false);
   useEffect(() => setSupported(passkeysSupported()), []);
   const form = useForm({ name: '' });
+  const { confirmFirst, refusedForConfirmation } = useConfirm();
   const failed = (fallback: string) => ({
-    onError: (errors: Record<string, string[]>) => setFailure(Object.values(errors)[0]?.[0] ?? fallback),
+    onError: (errors: Record<string, string[]>) => {
+      if (!refusedForConfirmation(errors)) setFailure(Object.values(errors)[0]?.[0] ?? fallback);
+    },
     onHttpException: (f: HttpFailure) => setFailure(describe(f).detail),
     onNetworkError: () => setFailure(describe(null).detail),
   });
 
   const add = async () => {
-    setBusy(true);
     setFailure(null);
+    if (!(await confirmFirst())) return;
+    setBusy(true);
     try {
       const options = (await passkeyOptions({})).value as Record<string, unknown>;
       const credential = await createPasskey(options);
@@ -117,7 +123,9 @@ export function Passkeys({ passkeys }: { passkeys: PasskeyData[] }) {
         resetOnSuccess: true,
       });
     } catch (error) {
-      setFailure(messageOf(error, 'The passkey was not added. Try again.'));
+      const errors = (error as { errors?: Record<string, string[]> } | null)?.errors;
+      if (!refusedForConfirmation(errors))
+        setFailure(messageOf(error, 'The passkey was not added. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -194,8 +202,10 @@ function day(moment: string): string {
 /**
  * Two-factor sign-in: off, half-way set up -- the secret for the
  * authenticator app and the code that turns it on -- or on, with recovery
- * codes to replace and a way to turn it off. Recovery codes are shown once,
- * as the action answers with them: only their hashes are kept.
+ * codes to replace and a way to turn it off. Setting it up asks this
+ * session to confirm it is its owner's first (useConfirm()). Recovery codes
+ * are shown once, as the action answers with them: only their hashes are
+ * kept.
  */
 export function TwoFactor({
   enabled,
@@ -208,6 +218,26 @@ export function TwoFactor({
 }) {
   const [codes, setCodes] = useState<string[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const { confirmFirst, refusedForConfirmation } = useConfirm();
+  const begin = useForm({});
+  const start = async () => {
+    setFailure(null);
+    if (!(await confirmFirst())) return;
+    setStarting(true);
+    try {
+      await begin.submit(beginTwoFactor, {
+        onError: (errors: Record<string, string[]>) => {
+          if (!refusedForConfirmation(errors))
+            setFailure(Object.values(errors)[0]?.[0] ?? 'Two-factor sign-in was not set up. Try again.');
+        },
+        onHttpException: (f: HttpFailure) => setFailure(describe(f).detail),
+        onNetworkError: () => setFailure(describe(null).detail),
+      });
+    } finally {
+      setStarting(false);
+    }
+  };
   const keep = (value: unknown) => {
     const shown = (value as { recoveryCodes?: unknown } | null)?.recoveryCodes;
     if (Array.isArray(shown)) setCodes(shown.filter((code): code is string => typeof code === 'string'));
@@ -279,6 +309,7 @@ export function TwoFactor({
         )}
         <Form
           onSuccess={(result) => keep(result.value)}
+          onError={(errors) => void refusedForConfirmation(errors)}
           onHttpException={(f) => setFailure(describe(f).detail)}
           {...stylex.props(styles.stack)}
           action={confirmTwoFactor}
@@ -303,13 +334,16 @@ export function TwoFactor({
       <Text tone="secondary">
         Ask for a code from an authenticator app each time you sign in with your password.
       </Text>
-      <Form action={beginTwoFactor}>
-        {(slot) => (
-          <Button type="submit" disabled={slot.processing}>
-            Set up two-factor sign-in
-          </Button>
-        )}
-      </Form>
+      {failure && (
+        <Banner tone="bad" title="Not set up">
+          {failure}
+        </Banner>
+      )}
+      <div>
+        <Button disabled={starting} onClick={() => void start()}>
+          Set up two-factor sign-in
+        </Button>
+      </div>
     </div>
   );
 }

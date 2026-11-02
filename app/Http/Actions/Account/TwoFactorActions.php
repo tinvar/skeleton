@@ -15,7 +15,9 @@ use Tinvar\Http\Request;
 /**
  * Two-factor sign-in with an authenticator app (ADR 0153): set up -- a new
  * secret, on only once a code from it is typed -- turned off, and its
- * recovery codes replaced, each change but setup asking for the password.
+ * recovery codes replaced. Setting up needs the session confirmed in the
+ * last five minutes (ConfirmActions); every other change asks for the
+ * password.
  *
  * The recovery codes come back in the action's answer and are shown once:
  * only their hashes are kept.
@@ -26,9 +28,9 @@ final readonly class TwoFactorActions
 
     /** A new secret, shown on the account page until a code from it is typed. */
     #[Action(name: 'account.beginTwoFactor')]
-    public function beginTwoFactor(): ActionResult
+    public function beginTwoFactor(Request $http): ActionResult
     {
-        $this->accounts->beginTwoFactor($this->user->get());
+        $this->accounts->beginTwoFactor($http, $this->user->get());
 
         return ActionResult::revalidate('account.settings');
     }

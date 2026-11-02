@@ -25,6 +25,7 @@ final readonly class AccountMails implements AccountMailsContract
     public const string EMAIL_CHANGE = 'account-email-change';
     public const string EMAIL_CHANGED = 'account-email-changed';
     public const string PASSWORD_CHANGED = 'account-password-changed';
+    public const string PASSKEY_ADDED = 'account-passkey-added';
 
     public function signUp(string $email, string $name, string $url, int $minutes): Mailable
     {
@@ -114,13 +115,29 @@ final readonly class AccountMails implements AccountMailsContract
         );
     }
 
-    private function email(Address $to, string $subject, string $template, string $anyUrl, string $name, string $url, string $email, string $reason, string $secondaryUrl = '', int $minutes = 0): AccountEmail
+    public function passkeyAdded(AccountUser $user, string $passkeyName, string $accountUrl, string $resetUrl): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'A passkey was added to your ' . Kernel::NAME . ' account',
+            self::PASSKEY_ADDED,
+            $accountUrl,
+            name: $user->accountName(),
+            url: $accountUrl,
+            secondaryUrl: $resetUrl,
+            email: $user->accountEmail(),
+            reason: 'A passkey was added to the ' . Kernel::NAME . " account {$user->accountEmail()}.",
+            passkey: self::plain($passkeyName),
+        );
+    }
+
+    private function email(Address $to, string $subject, string $template, string $anyUrl, string $name, string $url, string $email, string $reason, string $secondaryUrl = '', int $minutes = 0, string $passkey = ''): AccountEmail
     {
         return new AccountEmail(
             $to,
             $subject,
             $template,
-            new AccountMailData(Kernel::NAME, $name, $url, $secondaryUrl, $minutes, $email, $reason),
+            new AccountMailData(Kernel::NAME, $name, $url, $secondaryUrl, $minutes, $email, $reason, $passkey),
             // Every link in it is on the app's own origin.
             (string) preg_replace('#^(https?://[^/?\#]+).*\z#', '$1', $anyUrl),
         );

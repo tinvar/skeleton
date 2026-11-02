@@ -21,5 +21,7 @@ final readonly class AccountMailData extends Data
         public int $minutes,
         public string $email,
         public string $reason,
+        // What a passkey just added is called, for the email that says so.
+        public string $passkey = '',
     ) {}
 }

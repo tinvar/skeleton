@@ -14,9 +14,11 @@ use Tinvar\Http\Request;
 use Tinvar\Validation\ValidationException;
 
 /**
- * The account's passkeys (ADR 0153): adding one -- a challenge bound to
+ * The account's passkeys (ADR 0153): adding one -- once the session was
+ * confirmed in the last five minutes (ConfirmActions), a challenge bound to
  * this session and account, then the browser's answer verified for this
- * host -- and removing one. Signing in with one is SignInActions'.
+ * host, and the owner told by email -- and removing one. Signing in with
+ * one is SignInActions'.
  */
 final readonly class PasskeyActions
 {
