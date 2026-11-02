@@ -63,7 +63,7 @@ $console = new AppConsole(
         : null,
     // The app's public API -- whatever it marks #[RequiresScope] -- as an
     // OpenAPI 3.1 document, which `build` writes into dist/ when there is one
-    // (ADR 0158). A dev dependency's too.
+    // (ADR 0159). A dev dependency's too.
     openapi: class_exists(OpenApiCommand::class)
         ? static fn (array $arguments): int => OpenApiCommand::of(Kernel::NAME . ' API', Kernel::classes())->run($arguments)
         : null,
