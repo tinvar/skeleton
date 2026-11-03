@@ -45,11 +45,14 @@ trap 'rm -rf "$work"' EXIT
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-# git and unzip for Composer; xz for Node's tarball.
-apt-get install -y -qq --no-install-recommends ca-certificates curl git unzip xz-utils >/dev/null
+# git and unzip for Composer; xz for Node's tarball; libpq for pdo_pgsql.
+apt-get install -y -qq --no-install-recommends ca-certificates curl git unzip xz-utils libpq-dev >/dev/null
 
-# pdo_sqlite and posix are built into the image; these are not.
-docker-php-ext-install -j"$(nproc)" pcntl sockets >/dev/null
+# pdo_sqlite and posix are built into the image; these are not. The two
+# server databases' drivers too, so an app made with --database=postgres or
+# mysql migrates and runs its queue from this image's CLI, as FrankenPHP's
+# static binary, which has every driver, serves it.
+docker-php-ext-install -j"$(nproc)" pcntl sockets pdo_pgsql pdo_mysql >/dev/null
 
 fetch "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar" "$work/composer.phar" "$COMPOSER_SHA256"
 install -m 0755 "$work/composer.phar" /usr/local/bin/composer
@@ -59,7 +62,7 @@ fetch "https://nodejs.org/dist/v${NODE_VERSION}/${node}.tar.xz" "$work/node.tar.
 tar -xJf "$work/node.tar.xz" -C /usr/local --strip-components=1 --no-same-owner \
     "${node}/bin" "${node}/include" "${node}/lib" "${node}/share"
 
-for extension in pcntl pdo_sqlite posix sockets; do
+for extension in pcntl pdo_mysql pdo_pgsql pdo_sqlite posix sockets; do
     # shellcheck disable=SC2016 # $argv is PHP's, not the shell's
     if ! php -r 'exit(extension_loaded($argv[1]) ? 0 : 1);' "$extension"; then
         echo "PHP has no $extension extension." >&2

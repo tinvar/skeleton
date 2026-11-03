@@ -101,25 +101,31 @@ RUN set -eu; \
     chmod 0751 "$out"
 
 # ----------------------------------------------------------------------- php
-# The runtime's base: the same PHP image, with the two extensions the
-# console processes need compiled from the source it carries -- pcntl and
-# sockets -- and then everything that builds or fetches taken out again:
-# the compilers and headers, PHP's source, phpize, PEAR and pecl, curl's
-# command and xz, and /var/www, which anyone may write.
+# The runtime's base: the same PHP image, with the extensions the console
+# processes need compiled from the source it carries -- pcntl and sockets,
+# and the Postgres and MySQL drivers, so an app on a server database
+# migrates and runs its queue from this CLI as FrankenPHP's static binary
+# serves it -- and then everything that builds or fetches taken out again:
+# the compilers and headers (libpq's among them; its library stays), PHP's
+# source, phpize, PEAR and pecl, curl's command and xz, and /var/www, which
+# anyone may write.
 FROM php:8.5-cli@sha256:9236fd373d3bcda0659cf94838a744bd79791419292958963f8c6b34a0071554 AS php
 
 COPY --from=build --chmod=0644 /src/vendor/tinvar/framework/resources/container/php.ini /usr/local/etc/php/php.ini
 RUN set -eu; \
-    docker-php-ext-install -j"$(nproc)" pcntl sockets >/dev/null; \
     export DEBIAN_FRONTEND=noninteractive; \
-    apt-get purge -y -qq --auto-remove $PHPIZE_DEPS libc6-dev curl xz-utils >/dev/null; \
+    apt-get update -qq; \
+    apt-get install -y -qq --no-install-recommends libpq-dev >/dev/null; \
+    docker-php-ext-install -j"$(nproc)" pcntl sockets pdo_pgsql pdo_mysql >/dev/null; \
+    apt-mark manual libpq5 >/dev/null; \
+    apt-get purge -y -qq --auto-remove $PHPIZE_DEPS libc6-dev libpq-dev curl xz-utils >/dev/null; \
     rm -rf /usr/src/php.tar.xz /usr/src/php.tar.xz.asc /usr/local/include /usr/local/php \
         /usr/local/bin/docker-php-* /usr/local/bin/pear /usr/local/bin/peardev /usr/local/bin/pecl \
         /usr/local/bin/phar /usr/local/bin/phar.phar /usr/local/bin/php-cgi /usr/local/bin/php-config \
         /usr/local/bin/phpdbg /usr/local/bin/phpize /var/lib/apt/lists/* \
         /var/www; \
     find /usr/local/lib/php -mindepth 1 -maxdepth 1 ! -name extensions -exec rm -rf {} +; \
-    for extension in pcntl posix sockets pdo_sqlite sodium mbstring openssl curl; do \
+    for extension in pcntl posix sockets pdo_sqlite pdo_pgsql pdo_mysql sodium mbstring openssl curl; do \
         php -r 'exit(extension_loaded($argv[1]) ? 0 : 1);' "$extension" \
             || { echo "PHP has no $extension extension." >&2; exit 1; }; \
     done; \
