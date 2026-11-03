@@ -406,7 +406,10 @@ it('turns two-factor on with a code, then asks for one at sign-in, each good onc
     $secret = Base32::decode((string) ($browser->page('twoFactorSetup')['secret'] ?? ''));
     expect($secret)->toBeString();
 
-    $confirmed = $browser->action('account.confirmTwoFactor', ['code' => Totp::at((string) $secret, time())]);
+    // One code, kept: asked for again after a 30-second step has turned, a
+    // code made afresh would be the next step's, which nothing has spent.
+    $code = Totp::at((string) $secret, time());
+    $confirmed = $browser->action('account.confirmTwoFactor', ['code' => $code]);
     expect($confirmed->status)->toBe(200);
     $codes = json_decode($confirmed->body(), true)['value']['recoveryCodes'] ?? [];
     expect($codes)->toHaveCount(10);
@@ -418,7 +421,7 @@ it('turns two-factor on with a code, then asks for one at sign-in, each good onc
     expect($phone->page('waiting'))->toBeTrue();
 
     // The code just used to confirm is spent; a recovery code works, once.
-    expect($phone->action('account.completeSecondFactor', ['code' => Totp::at((string) $secret, time())])->status)->toBe(422);
+    expect($phone->action('account.completeSecondFactor', ['code' => $code])->status)->toBe(422);
     expect($phone->action('account.completeSecondFactor', ['code' => strtoupper($codes[0])])->status)->toBe(303)
         ->and(signedInAs($phone))->toBe('ada@example.com');
 
