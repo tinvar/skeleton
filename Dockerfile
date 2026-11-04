@@ -163,6 +163,7 @@ COPY --from=build --chmod=0755 /src/vendor/tinvar/framework/resources/container/
     /src/vendor/tinvar/framework/resources/container/supervise \
     /src/vendor/tinvar/framework/resources/container/renderers \
     /src/vendor/tinvar/framework/resources/container/healthcheck \
+    /src/vendor/tinvar/framework/resources/container/secret-file \
     /usr/local/lib/tinvar/
 # Copied, not COPYed: COPY makes every file root's, and the modes and the
 # group above are the point. And the two PHPs held to one minor version: the
