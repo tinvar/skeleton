@@ -16,3 +16,6 @@
 *.key
 /database/*.sqlite
 /database/*.sqlite-*
+
+# compose.yaml's secrets: files of yours, never committed.
+/secrets/

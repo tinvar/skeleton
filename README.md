@@ -165,7 +165,7 @@ same machine is on loopback too -- unless `TINVAR_PROBE_TRUST_LOOPBACK=1`.
 curl -H "Authorization: Bearer $(cat ~/.local/state/tinvar/my-app-*.probe-token)" http://127.0.0.1:6123/_health
 ```
  Never commit a key: `.gitignore` and
-`.dockerignore` keep `.env`, `*.key` and the database out.
+`.dockerignore` keep `.env`, `*.key`, `secrets/` and the database out.
 
 ## Production
 
@@ -176,9 +176,23 @@ The image holds no secret; it refuses to start without an app key and a
 probe token.
 
 ```sh
-cp .env.example .env    # fill in APP_KEY and APP_PROBE_TOKEN
+mkdir -m 0700 secrets
+openssl rand -base64 32 >secrets/app_key
+openssl rand -hex 24 >secrets/probe_token
+openssl rand -hex 32 >secrets/trusted_proxy_secret
+chmod 0600 secrets/*
+cp .env.example .env    # fill in APP_URL, APP_MAIL_FROM and APP_MAIL_PROVIDER
 docker compose up -d --build
 ```
+
+The secrets are compose secrets, files in `secrets/`, never in `.env`:
+`docker inspect` shows none of them. Compose mounts each at
+`/run/secrets/<name>`; the entrypoint reads the file each `_FILE` variable
+names there, as root or as the file's owner, before it starts anything, and
+hands PHP the value. It refuses a file the renderers' user could read.
+`secrets/` is in `.gitignore` and `.dockerignore`. A mail provider's key is
+one more file there, named in its `_FILE` variable: `compose.yaml`'s header
+shows how.
 
 Put a TLS terminator in front: the cookies are `__Host-`, which browsers
 send over https alone. `bin/tinvar deploy:init fly` (or `render`,

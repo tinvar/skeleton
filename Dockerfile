@@ -141,6 +141,10 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # PHP's user, the renderers' user, and the socket group of exactly the two:
 # the renderers' primary group, and PHP's only other one. Fixed ids, so a
 # volume or a tmpfs can name them.
+# And /run/secrets, where compose mounts its secrets: root's, passable by
+# PHP's group alone, so the renderers' user cannot reach a file in it
+# whatever the file's own mode -- a host's bind mount through Docker
+# Desktop's file sharing lets every user read it.
 RUN set -eu; \
     groupadd --gid 10001 tinvar-app; \
     useradd --uid 10001 --gid tinvar-app --no-create-home --home-dir /nonexistent \
@@ -151,7 +155,8 @@ RUN set -eu; \
     usermod --append --groups tinvar-render tinvar-app; \
     install -d -o 0 -g 0 -m 0755 /var/lib/app; \
     install -d -o tinvar-app -g tinvar-app -m 0700 /var/lib/app/data; \
-    install -d -o tinvar-renderer -g tinvar-render -m 0750 /run/tinvar-renderer
+    install -d -o tinvar-renderer -g tinvar-render -m 0750 /run/tinvar-renderer; \
+    install -d -o 0 -g tinvar-app -m 0710 /run/secrets
 
 COPY --from=build /out/bin/ /usr/local/bin/
 COPY --from=build --chmod=0755 /src/vendor/tinvar/framework/resources/container/entrypoint \

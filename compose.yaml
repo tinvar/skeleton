@@ -1,15 +1,25 @@
 # The app's image, run as it is meant to run. From the app's root:
 #
-#   cp .env.example .env     # then fill in APP_KEY, APP_PROBE_TOKEN, APP_TRUSTED_PROXY_SECRET,
-#                            # APP_URL, APP_MAIL_FROM and APP_MAIL_PROVIDER
-#   docker compose build
-#   docker compose up -d
+#   mkdir -m 0700 secrets
+#   openssl rand -base64 32 >secrets/app_key
+#   openssl rand -hex 24 >secrets/probe_token
+#   openssl rand -hex 32 >secrets/trusted_proxy_secret
+#   chmod 0600 secrets/*
+#   cp .env.example .env     # then fill in APP_URL, APP_MAIL_FROM and APP_MAIL_PROVIDER
+#   docker compose up -d --build
 #
-# The app key is given at run time and never built in: here from .env or the
-# environment compose is run in. A secret file works as well: mount it, give
-# PHP's user (uid 10001) alone read access, and name it in
-# TINVAR_APP_KEY_FILE. The entrypoint refuses to start without a key, and if
-# the renderers' user could read it.
+# The secrets are files, never in .env or the environment compose is run in,
+# so `docker inspect` shows none: compose mounts each at /run/secrets/<name>,
+# and the entrypoint -- root, before it starts anything -- reads each file a
+# _FILE variable names there, as root or as the file's owner, and hands PHP
+# its value. The renderers' user is refused one it could read itself.
+# secrets/ is in .gitignore and .dockerignore; keep it 0700 and its files
+# 0600, yours. The image refuses to start without an app key and a probe
+# token, and holds neither.
+#
+# A provider's key goes the same way: a file in secrets/, a line for it under
+# `secrets:` at the bottom and in the service's, and its _FILE variable --
+# TINVAR_POSTMARK_TOKEN_FILE: /run/secrets/postmark_token -- beside the others.
 #
 # A TLS terminator goes in front (the cookies are __Host-), and must prove
 # itself with APP_TRUSTED_PROXY_SECRET in X-Tinvar-Proxy, overwriting any a
@@ -20,6 +30,8 @@
 #           header_up X-Tinvar-Proxy {env.APP_TRUSTED_PROXY_SECRET}
 #       }
 #   }
+#
+# started with APP_TRUSTED_PROXY_SECRET="$(cat secrets/trusted_proxy_secret)".
 
 services:
   app:
@@ -27,11 +39,13 @@ services:
       context: .
     image: tinvar-app:dev
     environment:
-      TINVAR_APP_KEY: ${APP_KEY:?set APP_KEY, 32 bytes or more (openssl rand -base64 32)}
+      # The app key, 32 bytes or more, from secrets/app_key.
+      TINVAR_APP_KEY_FILE: /run/secrets/app_key
       # The probes' only way in, the image's own healthcheck included: the
       # renderers share this container's loopback, so it is not trusted
       # without the token, and the entrypoint refuses to serve with none.
-      TINVAR_PROBE_TOKEN: ${APP_PROBE_TOKEN:?set APP_PROBE_TOKEN, 32 characters or more (openssl rand -hex 24)}
+      # 32 characters or more, from secrets/probe_token.
+      TINVAR_PROBE_TOKEN_FILE: /run/secrets/probe_token
       TINVAR_PROBE_TRUST_LOOPBACK: "0"
       # The accounts (ADR 0153): the https origin every emailed link is
       # built on and passkeys are made for, who the mail is from, and where
@@ -39,6 +53,15 @@ services:
       APP_URL: ${APP_URL:?set APP_URL, the https origin the app is served on, as https://app.example}
       APP_MAIL_FROM: ${APP_MAIL_FROM:?set APP_MAIL_FROM, the address the app's email comes from}
       TINVAR_MAIL_PROVIDER: ${APP_MAIL_PROVIDER:?set APP_MAIL_PROVIDER, the provider that sends the app's mail (smtp, ses, postmark, mailgun, resend or sendgrid), and its own variables}
+      # The provider's own settings, from .env where it names them -- empty
+      # is unset -- and its key a secret like the others (the header shows how).
+      TINVAR_SMTP_HOST: ${TINVAR_SMTP_HOST:-}
+      TINVAR_SMTP_PORT: ${TINVAR_SMTP_PORT:-}
+      TINVAR_SMTP_USERNAME: ${TINVAR_SMTP_USERNAME:-}
+      TINVAR_SMTP_ENCRYPTION: ${TINVAR_SMTP_ENCRYPTION:-}
+      TINVAR_SES_REGION: ${TINVAR_SES_REGION:-}
+      TINVAR_MAILGUN_DOMAIN: ${TINVAR_MAILGUN_DOMAIN:-}
+      TINVAR_MAILGUN_REGION: ${TINVAR_MAILGUN_REGION:-}
       # Who may open the admin panel; empty, nobody may.
       APP_ADMINS: ${APP_ADMINS:-}
       # The proxies in front, whose X-Forwarded-For names the client the
@@ -53,8 +76,10 @@ services:
       # for one -- the subnet's gateway is also where a published port's
       # userland proxy connects from, for anything on the host. Required,
       # since the range above is wider than one address: the app refuses to
-      # boot without it. 32 characters or more.
-      TINVAR_TRUSTED_PROXY_SECRET: ${APP_TRUSTED_PROXY_SECRET:?set APP_TRUSTED_PROXY_SECRET, 32 characters or more (openssl rand -hex 32), and have the terminator send it in X-Tinvar-Proxy}
+      # boot without it. 32 characters or more, from secrets/trusted_proxy_secret.
+      TINVAR_TRUSTED_PROXY_SECRET_FILE: /run/secrets/trusted_proxy_secret
+    # Mounted at /run/secrets/<name>, read by the entrypoint alone.
+    secrets: [app_key, probe_token, trusted_proxy_secret]
     # Loopback only: put a TLS terminator in front, since the cookies are
     # __Host- and the browser sends them over https alone.
     ports:
@@ -91,3 +116,13 @@ networks:
 
 volumes:
   data:
+
+# Files in secrets/, never committed and never sent to a build. Compose
+# refuses to start without each.
+secrets:
+  app_key:
+    file: ./secrets/app_key
+  probe_token:
+    file: ./secrets/probe_token
+  trusted_proxy_secret:
+    file: ./secrets/trusted_proxy_secret

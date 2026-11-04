@@ -22,3 +22,6 @@ dist-test
 
 # Not part of what runs.
 tests
+
+# compose.yaml's secret files.
+secrets
