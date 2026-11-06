@@ -36,7 +36,7 @@ final readonly class Users implements AccountUsers
         return $this->orm->whereIn(User::class, 'email', [$email])[0] ?? null;
     }
 
-    public function create(string $email, string $name, string $passwordHash): AccountUser
+    public function create(string $email, string $name, #[\SensitiveParameter] string $passwordHash): AccountUser
     {
         if ($this->findByEmail($email) !== null) {
             throw new EmailTaken();
@@ -52,7 +52,7 @@ final readonly class Users implements AccountUsers
         return $user;
     }
 
-    public function changePassword(AccountUser $user, string $passwordHash): void
+    public function changePassword(AccountUser $user, #[\SensitiveParameter] string $passwordHash): void
     {
         $user = $this->own($user);
         $user->passwordHash = $passwordHash;
@@ -70,7 +70,7 @@ final readonly class Users implements AccountUsers
      * through $this->orm->connection() -- never a read and a save(), which
      * writes over whatever is stored.
      */
-    public function changePasswordFrom(AccountUser $user, string $current, string $passwordHash): bool
+    public function changePasswordFrom(AccountUser $user, #[\SensitiveParameter] string $current, #[\SensitiveParameter] string $passwordHash): bool
     {
         return $this->orm->query(User::class)
             ->where('id', $this->own($user)->id)
