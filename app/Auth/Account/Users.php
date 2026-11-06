@@ -59,6 +59,33 @@ final readonly class Users implements AccountUsers
         $this->orm->save($user);
     }
 
+    /**
+     * One conditional write, its row locked while it is compared (ADR 0168):
+     * a hash stored since $current was read -- a reset's, a change's,
+     * another sign-in's rehash -- stays.
+     *
+     * update() writes no row past a model's #[BeforeSave] or #[AfterSave]
+     * methods, and refuses User once it has any: then this is
+     * `UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?`
+     * through $this->orm->connection() -- never a read and a save(), which
+     * writes over whatever is stored.
+     */
+    public function changePasswordFrom(AccountUser $user, string $current, string $passwordHash): bool
+    {
+        return $this->orm->query(User::class)
+            ->where('id', $this->own($user)->id)
+            ->where('passwordHash', $current)
+            ->update(['passwordHash' => $passwordHash]) === 1;
+    }
+
+    /** Read from the table, past the identity map, which holds the user as the request first read them. */
+    public function storedPasswordHash(AccountUser $user): ?string
+    {
+        $hash = $this->orm->query(User::class)->where('id', $user->authIdentifier())->pluck('passwordHash')[0] ?? null;
+
+        return \is_string($hash) ? $hash : null;
+    }
+
     public function changeEmail(AccountUser $user, string $email): void
     {
         $taken = $this->findByEmail($email);

@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Accounts;
 
+use App\Auth\Account\Users;
 use App\Database\Migrations;
 use App\Database\Models\Account\User;
 use App\Kernel;
@@ -305,6 +306,26 @@ it('changes a known password, asking for the current one, and keeps this browser
 
     $fresh = new Browser($this->kernel);
     expect($fresh->action('account.signIn', ['email' => 'ada@example.com', 'password' => 'a brand new passphrase'])->status)->toBe(303);
+});
+
+// The kit stores a rehash through Users, over the hash its sign-in checked
+// and no other (ADR 0168): a password stored since, a reset's, stays -- and
+// what is stored is read past the user the request loaded.
+it('stores a rehash only over the hash its sign-in checked, and reads the hash stored past the user loaded', function () {
+    signUp($this->kernel, $this->mail, 'ada@example.com');
+    $users = new Users($this->kernel->orm);
+    $ada = $users->findByEmail('ada@example.com');
+    \assert($ada !== null);
+    $checked = $ada->accountPasswordHash();
+    $reset = password_hash('a brand new passphrase', PASSWORD_DEFAULT);
+    $this->kernel->orm->connection()->execute('UPDATE users SET password_hash = ?', [$reset]);
+
+    expect($users->changePasswordFrom($ada, $checked, password_hash(PASSWORD, PASSWORD_DEFAULT)))->toBeFalse()
+        ->and($users->storedPasswordHash($ada))->toBe($reset);
+
+    $rehashed = password_hash('a brand new passphrase', PASSWORD_DEFAULT);
+    expect($users->changePasswordFrom($ada, $reset, $rehashed))->toBeTrue()
+        ->and($users->storedPasswordHash($ada))->toBe($rehashed);
 });
 
 it('moves an account to a new address only from a link the new address got', function () {
