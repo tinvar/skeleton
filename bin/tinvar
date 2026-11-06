@@ -76,6 +76,11 @@ $console = new AppConsole(
     kernel: Kernel::class,
     // `serve` writes the renderers' lines into the app's log as well.
     rendererLog: Kernel::rendererLog(...),
+    // The live hub's keys, derived from the app key, for the dev Caddyfile's
+    // `mercure` block, which refuses to start without them: FrankenPHP's
+    // environment only, never the renderer's, and never the app key itself
+    // (ADR 0177).
+    serverEnvironment: static fn (): array => Tinvar\Live\HubSettings::resolve(Kernel::appKey())->environment(),
     // `serve --worker` and `dev --worker` -- as bin/serve and bin/dev run
     // them -- run this CLI's queue:work beside the server: the account
     // emails go out through it.
