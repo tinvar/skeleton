@@ -8,6 +8,7 @@ use Tinvar\Accounts\SessionCookie;
 use Tinvar\Http\Flash;
 use Tinvar\Http\FlashStore;
 use Tinvar\Http\Request;
+use Tinvar\Orm\NamesDriver;
 use Tinvar\Orm\Orm;
 
 /**
@@ -15,10 +16,13 @@ use Tinvar\Orm\Orm;
  * -- its errors and its input -- in the `flashes` table, by session.
  *
  * Keyed by a hash of the session id, so a copy of the table is not a list
- * of cookies; one row per session, replaced by the next flash; and taken
- * with DELETE ... RETURNING, so two requests cannot both read it. Only a
- * request whose cookie says a flash is waiting reaches pull() (Flash::COOKIE),
- * so a page with nothing flashed costs no statement.
+ * of cookies; one row per session, replaced by the next flash; and taken by
+ * the request whose DELETE removes the row it read, so two requests cannot
+ * both read it. Only a request whose cookie says a flash is waiting reaches
+ * pull() (Flash::COOKIE), so a page with nothing flashed costs no statement.
+ *
+ * Every statement is one SQLite, Postgres and MySQL all read (ADR 0169), but
+ * for the upsert, which none of them spells as another does.
  */
 final class Flashes implements FlashStore
 {
@@ -39,21 +43,28 @@ final class Flashes implements FlashStore
 
         $now = time();
         $connection = $this->orm->connection();
-        $connection->transaction(static function () use ($connection, $session, $flash, $now): void {
-            $connection->execute(
-                'INSERT INTO flashes (session, data, expires_at) VALUES (?, ?, ?) '
-                . 'ON CONFLICT (session) DO UPDATE SET data = excluded.data, expires_at = excluded.expires_at',
-                [$session, json_encode($flash, JSON_THROW_ON_ERROR), $now + Flash::LIFETIME],
-            );
+        $connection->execute(
+            $connection instanceof NamesDriver && $connection->driver() === 'mysql'
+                ? 'INSERT INTO flashes (session, data, expires_at) VALUES (?, ?, ?) '
+                    . 'ON DUPLICATE KEY UPDATE data = VALUES(data), expires_at = VALUES(expires_at)'
+                : 'INSERT INTO flashes (session, data, expires_at) VALUES (?, ?, ?) '
+                    . 'ON CONFLICT (session) DO UPDATE SET data = excluded.data, expires_at = excluded.expires_at',
+            [$session, json_encode($flash, JSON_THROW_ON_ERROR), $now + Flash::LIFETIME],
+        );
 
-            // Rows come only from flashes, one each, so sweeping a batch per
-            // flash keeps the table to about one lifetime's worth.
+        // Rows come only from flashes, one each, so sweeping a batch per
+        // flash keeps the table to about one lifetime's worth. Read, then
+        // deleted by key where still expired: MySQL takes no LIMIT in a
+        // subquery, nor a subquery of the table it deletes from. And after
+        // the flash is written, not in its transaction, so no put holds its
+        // own row while it waits for another's.
+        $expired = array_column($connection->select('SELECT session FROM flashes WHERE expires_at <= ? LIMIT ' . self::SWEEP_BATCH, [$now]), 'session');
+        if ($expired !== []) {
             $connection->execute(
-                'DELETE FROM flashes WHERE session IN (SELECT session FROM flashes WHERE expires_at <= ? LIMIT '
-                . self::SWEEP_BATCH . ')',
-                [$now],
+                'DELETE FROM flashes WHERE expires_at <= ? AND session IN (' . implode(', ', array_fill(0, \count($expired), '?')) . ')',
+                [$now, ...$expired],
             );
-        });
+        }
     }
 
     public function pull(Request $request): array
@@ -67,12 +78,19 @@ final class Flashes implements FlashStore
         // and a DELETE takes SQLite's write lock whether or not a row is
         // there. A page view with nothing waiting writes nothing.
         $connection = $this->orm->connection();
-        if ($connection->select('SELECT 1 FROM flashes WHERE session = ?', [$session]) === []) {
+        $row = $connection->select('SELECT data, expires_at FROM flashes WHERE session = ?', [$session])[0] ?? null;
+        if ($row === null) {
             return [];
         }
 
-        $row = $connection->select('DELETE FROM flashes WHERE session = ? RETURNING data, expires_at', [$session])[0] ?? null;
-        if ($row === null || (int) $row['expires_at'] <= time()) {
+        // Then taken, where it is still the row read: of two requests one
+        // gets it, and a flash put in its place meanwhile waits for the next
+        // page. DELETE ... RETURNING did both at once, and is not MySQL's.
+        $taken = $connection->execute(
+            'DELETE FROM flashes WHERE session = ? AND expires_at = ? AND data = ?',
+            [$session, $row['expires_at'], $row['data']],
+        );
+        if ($taken !== 1 || (int) $row['expires_at'] <= time()) {
             return [];
         }
 

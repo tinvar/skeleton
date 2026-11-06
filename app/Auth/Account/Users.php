@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Account;
 
 use App\Database\Models\Account\User;
+use Random\Randomizer;
 use Tinvar\Accounts\AccountUser;
 use Tinvar\Accounts\AccountUsers;
 use Tinvar\Accounts\EmailTaken;
@@ -22,6 +23,9 @@ use Tinvar\Orm\Orm;
  */
 final readonly class Users implements AccountUsers
 {
+    /** What a hash's digest is written in: bcrypt's base64 and Argon2's, one character apart. */
+    private const string DIGEST = './+0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+
     public function __construct(private Orm $orm) {}
 
     public function find(string $id): ?AccountUser
@@ -97,9 +101,21 @@ final readonly class Users implements AccountUsers
         $this->save($user);
     }
 
+    /**
+     * From a point drawn at random among the hashes' digests -- the last ten
+     * characters of each, which say nothing of the algorithm or the cost a
+     * hash was made with -- and on around to it: a sample favouring no way
+     * of hashing, drawn afresh each time as random() drew it, so nobody can
+     * make hashes of their own the ones always read. SQLite, Postgres and
+     * MySQL all read this; MySQL spells random() RAND() (ADR 0169).
+     */
     public function passwordHashes(int $limit): array
     {
-        $rows = $this->orm->connection()->select('SELECT password_hash FROM users ORDER BY random() LIMIT ' . $limit);
+        $digest = 'SUBSTR(password_hash, LENGTH(password_hash) - 9)';
+        $rows = $this->orm->connection()->select(
+            "SELECT password_hash FROM users ORDER BY CASE WHEN {$digest} >= ? THEN 0 ELSE 1 END, {$digest} LIMIT {$limit}",
+            [new Randomizer()->getBytesFromString(self::DIGEST, 10)],
+        );
 
         return array_values(array_filter(array_map(static fn (array $row): mixed => $row['password_hash'] ?? null, $rows), \is_string(...)));
     }
