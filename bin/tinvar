@@ -217,6 +217,12 @@ function setup(AppConsole $console, bool $nextSteps = true): int
         }
     }
 
+    // FrankenPHP, which bin/serve and bin/dev run: where none is found, the
+    // release's binary for this machine, held to its pinned sha256 before it
+    // is made executable (ADR 0175). Without one -- offline, or a machine
+    // FrankenPHP publishes no binary for -- the next steps say how.
+    $frankenphp = getenv('TINVAR_SETUP_SKIP_FRANKENPHP') === '1' || $console->run([__FILE__, 'frankenphp:install']) === 0;
+
     if (!$nextSteps) {
         return $migrated ? 0 : 1;
     }
@@ -235,11 +241,14 @@ function setup(AppConsole $console, bool $nextSteps = true): int
     if (!$migrated) {
         echo "  bin/tinvar migrate                  # once the database is there\n";
     }
+    if (!$frankenphp) {
+        echo "  bin/tinvar frankenphp:install       # FrankenPHP, which bin/serve and bin/dev run\n";
+    }
     echo "  bin/tinvar doctor                   # every check the app needs, each problem with its fix\n";
     echo "  bin/dev                             # dev mode: renders from source, reloads as you edit\n";
     echo "  npm run build && bin/serve          # or the build, as production serves it\n";
     echo "  vendor/bin/pest && npx vitest run   # the tests\n\n";
-    echo "Both serve with FrankenPHP: put its binary at tools/frankenphp, set TINVAR_FRANKENPHP, or have it on your PATH.\n";
+    echo "Both serve with FrankenPHP: tools/frankenphp, unless TINVAR_FRANKENPHP or the PATH names another.\n";
 
     return $migrated ? 0 : 1;
 }

@@ -8,9 +8,12 @@ HTML and an RSC stream.
 ## Start
 
 You need PHP 8.5 with `pdo_sqlite`, `sockets`, `pcntl` and `posix`;
-Composer 2; Node 22.13 or later; and FrankenPHP's static binary
-(<https://github.com/php/frankenphp/releases>) at `tools/frankenphp`, in
-`TINVAR_FRANKENPHP`, or on your `PATH`.
+Composer 2; and Node 22.13 or later. FrankenPHP comes with setup: where
+none is at `tools/frankenphp`, in `TINVAR_FRANKENPHP` or on your `PATH`, it
+downloads FrankenPHP's official binary for your machine (macOS on Apple
+silicon, Linux on x86-64 or ARM64) to `tools/frankenphp`, held to the
+sha256 the framework pins. Elsewhere, install FrankenPHP
+(<https://frankenphp.dev>) and put it in one of those places.
 
 ```sh
 composer create-project tinvar/skeleton my-app
@@ -23,7 +26,9 @@ app is installed it runs `bin/tinvar setup`, once: it generates the app key
 and the probe token into your state directory (`~/.local/state/tinvar/`,
 never the project),
 writes the TypeScript the views use from the PHP, makes the SQLite database,
-and runs `npm install --ignore-scripts`. It runs nothing else it fetched.
+runs `npm ci --ignore-scripts`, and downloads FrankenPHP where none is found
+(`bin/tinvar frankenphp:install` does that alone). It runs nothing else it
+fetched.
 
 `bin/dev` is dev mode: Vite's dev server renders the app from source, an
 edit shows in the open page, codegen runs again as the PHP changes, and the
