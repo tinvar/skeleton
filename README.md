@@ -33,8 +33,9 @@ with `TINVAR_ENV=local`, it also draws the pages and components in
 `/_vite/__workbench` and `/_vite/__playground`. `bin/tinvar render --dump
 PATH` prints a page's HTML and RSC payload, and `bin/tinvar mcp` is an MCP
 server for an assistant; both read a build made with `bin/tinvar build
---profile=test --out=dist-test`, on a copy of the database. To serve the
-build as production does:
+--profile=test --out=dist-test`, on a copy of the database -- on Postgres
+or MySQL, a copy made on its server, on MySQL as the user
+`TINVAR_DUMP_MYSQL_DSN` names. To serve the build as production does:
 
 ```sh
 npm run build

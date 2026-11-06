@@ -246,9 +246,10 @@ function setup(AppConsole $console, bool $nextSteps = true): int
 
 /**
  * `render --dump` and `mcp`, tinvar/testing's development tools: refused
- * outside a developer's machine, rendering on a copy of the database
- * through renderers started on a build made for the test profile, by a
- * Kernel with a key of its own.
+ * outside a developer's machine, rendering on a copy of the database --
+ * the SQLite file, or the Postgres or MySQL database APP_DATABASE_DRIVER
+ * names, copied on its own server (ADR 0173) -- through renderers started
+ * on a build made for the test profile, by a Kernel with a key of its own.
  *
  * @param list<string> $arguments
  */
@@ -260,16 +261,32 @@ function devTools(string $command, array $arguments): int
         return 1;
     }
 
+    try {
+        // Where they may run, first: nothing of the database is read, not
+        // even how to reach it, where they may not.
+        Tinvar\Testing\Dev\DevTools::assertAllowed($command === 'mcp' ? 'tinvar mcp' : 'tinvar render --dump');
+        // The app's own database: on a server, never the path the files
+        // beside it are named from, which holds none of its rows.
+        $database = Kernel::devToolsDatabase();
+    } catch (RuntimeException|InvalidArgumentException $e) {
+        fwrite(STDERR, $e->getMessage() . "\n");
+
+        return 1;
+    }
+
     $routes = new RouteRegistry();
     $routes->registerAll(Kernel::classes()->routes);
     $root = realpath(APP_ROOT) ?: APP_ROOT;
     $tools = new Tinvar\Testing\Dev\DevToolsCommand(
         app: $root,
         projectRoot: $root,
-        database: Kernel::databasePath(),
+        database: $database,
         // Through `tinvar dev` (--dev), $dev is the deferred manifest its dev
         // server keeps, and the Kernel is built in dev mode, as dev's is.
-        application: static function (string $socket, string $database, string $key, ?string $build, ?string $dev = null) use ($routes): Kernel {
+        // $database is the copy -- an SQLite file, or on a server its DSN,
+        // password and all -- and $files where what the app keeps beside its
+        // database goes: beside the copy, in its private directory.
+        application: static function (string $socket, #[\SensitiveParameter] string $database, #[\SensitiveParameter] string $key, ?string $build, ?string $dev = null, ?string $files = null) use ($routes): Kernel {
             $deferred = $dev ?? "{$build}/rsc/deferred.json";
 
             return Kernel::fromEnvironment(
@@ -278,6 +295,7 @@ function devTools(string $command, array $arguments): int
                 database: $database,
                 manifest: ($build !== null || $dev !== null) && is_file($deferred) ? FragmentManifestProducer::produce($routes, $deferred) : new Tinvar\Render\FragmentManifest(),
                 dev: $dev !== null,
+                files: $files,
             );
         },
         models: Kernel::classes()->models,

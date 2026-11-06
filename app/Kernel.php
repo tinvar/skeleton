@@ -33,6 +33,7 @@ use Tinvar\Cache\Store;
 use Tinvar\Codec\FrameCodec;
 use Tinvar\Codec\MessagePackCodec;
 use Tinvar\Config\FrameworkConfig;
+use Tinvar\Config\Secret;
 use Tinvar\Console\Console;
 use Tinvar\Container\Container;
 use Tinvar\Data\Encoder;
@@ -87,6 +88,7 @@ use Tinvar\Observability\RequestId;
 use Tinvar\Observability\SqliteMetricsStore;
 use Tinvar\Observability\StreamSink;
 use Tinvar\Observability\Telemetry;
+use Tinvar\Orm\DatabaseDriver;
 use Tinvar\Orm\IdentityMap;
 use Tinvar\Orm\Orm;
 use Tinvar\Orm\PdoConnection;
@@ -457,6 +459,11 @@ final class Kernel implements TestableApplication, Terminable
         ?string $socketPath = null,
         #[\SensitiveParameter]
         ?string $key = null,
+        // In place of the database the config names: a test's SQLite file or
+        // ':memory:', or the copy `render --dump` and `mcp` make -- an SQLite
+        // file, or a copy on the app's server named by its DSN, which carries
+        // its password (copyConnection(), ADR 0173).
+        #[\SensitiveParameter]
         ?string $database = null,
         ?bool $dev = null,
         // In place of the log file and metrics store the environment gives: a test's.
@@ -470,6 +477,12 @@ final class Kernel implements TestableApplication, Terminable
         ?Transport $mailTransport = null,
         ?ThrottleStore $signInStore = null,
         ?string $origin = null,
+        // What the files kept beside the database -- the log, the mail log,
+        // the metrics, the counts, the build history -- are named from, in
+        // place of the database's path: required with a copy on a server,
+        // whose DSN names no place to keep them -- the dev tools name one in
+        // the copy's private directory (ADR 0173).
+        ?string $files = null,
     ): self {
         // First of all: a key missing or malformed stops the process here,
         // every one named, before anything is opened on a guess.
@@ -490,14 +503,19 @@ final class Kernel implements TestableApplication, Terminable
         $toolbar = DevToolbar::fromEnvironment($sessionId, dev: $dev, build: self::build());
 
         $named = $database !== null;
+        $copy = $named && (str_starts_with($database, 'pgsql:') || str_starts_with($database, 'mysql:'));
+        if ($copy && $files === null) {
+            throw new \InvalidArgumentException('A database on a server, named by its DSN, has nowhere beside it to keep the files kept beside a database: name a place with files:.');
+        }
         $database ??= self::databasePath();
+        $beside = $files ?? $database;
         $manifest ??= $dev ? self::devFragmentManifest() : self::fragmentManifest();
 
         /** @var self|null $kernel */
         $kernel = null;
         $fragments = new FragmentSupport(
             signer: new Signer($key, FragmentToken::PURPOSE),
-            builds: self::builds($database),
+            builds: self::builds($beside),
             render: static function (FragmentToken $token, Request $request, array $models, array $allowed, ?SharedReads $shared = null) use (&$kernel): Response {
                 \assert($kernel instanceof self);
 
@@ -509,9 +527,14 @@ final class Kernel implements TestableApplication, Terminable
         );
 
         // A database a caller names -- a test's, `render --dump`'s copy -- is
-        // a SQLite file; otherwise the one the config says.
-        $connection = $named ? PdoConnection::sqlite($database, 'app') : self::connection();
-        $telemetry ??= self::telemetry($database);
+        // a SQLite file, or a copy on a server and nothing else there;
+        // otherwise the one the config says.
+        $connection = match (true) {
+            $copy => self::copyConnection($database),
+            $named => PdoConnection::sqlite($database, 'app'),
+            default => self::connection(),
+        };
+        $telemetry ??= self::telemetry($beside);
 
         $kernel = new self(
             $connection,
@@ -521,7 +544,7 @@ final class Kernel implements TestableApplication, Terminable
             new MessagePackCodec(),
             false,
             new CsrfTokens(new Signer($key, CsrfTokens::PURPOSE), $sessionId),
-            self::throttleStore($database),
+            self::throttleStore($beside),
             self::limitsFrom((string) self::config()->throttle),
             new HistoryKeys(new Signer($key, HistoryKeys::PURPOSE), $sessionId),
             $manifest,
@@ -533,10 +556,10 @@ final class Kernel implements TestableApplication, Terminable
             self::cacheStore(),
             $rendererUsers,
             FrameworkConfig::load()->proxies(),
-            $signInStore ?? self::signInStore($database),
+            $signInStore ?? self::signInStore($beside),
             $origin,
             mailRenderer: $mailRenderer,
-            mailTransport: $mailTransport ?? self::mailTransport($database),
+            mailTransport: $mailTransport ?? self::mailTransport($beside),
         );
 
         return $kernel;
@@ -970,6 +993,100 @@ final class Kernel implements TestableApplication, Terminable
             (string) $config->databaseName,
             $config->databaseUser,
             $config->databasePassword?->reveal(),
+            'app',
+        );
+    }
+
+    /**
+     * What `bin/tinvar render --dump` and `mcp` copy, and render on the copy
+     * of (tinvar/testing's DatabaseSnapshot, ADR 0173): the SQLite file at
+     * databasePath(), or the Postgres or MySQL database the config names,
+     * as the DSN the server's own dump tools are handed it by (ADR 0113) --
+     * its user and password in it, so a Secret. Never the path the files
+     * kept beside a server's database are named from, which holds none of
+     * its rows.
+     *
+     * A user or password the DSN cannot carry is refused, never cut short:
+     * a semicolon ends a DSN's value -- `secret;dbname=other` would name
+     * another database -- and the DSN is read with each value's ends trimmed.
+     *
+     * @throws \RuntimeException for a user or password a DSN cannot carry
+     * @throws \InvalidArgumentException for a host or database name a DSN cannot carry (DatabaseDriver::dsn())
+     */
+    public static function devToolsDatabase(): string|Secret
+    {
+        $config = self::config();
+        if (!$config->databaseDriver->isServer()) {
+            return self::databasePath();
+        }
+
+        $dsn = $config->databaseDriver->dsn((string) $config->databaseHost, $config->databasePort, (string) $config->databaseName);
+        $credentials = [
+            'user' => ['APP_DATABASE_USER', $config->databaseUser],
+            'password' => ['APP_DATABASE_PASSWORD', $config->databasePassword?->reveal()],
+        ];
+        foreach ($credentials as $part => [$variable, $value]) {
+            if ($value === null) {
+                continue;
+            }
+            if (str_contains($value, ';') || trim($value) !== $value || preg_match('/[\x00-\x1f\x7f]/', $value) === 1) {
+                throw new \RuntimeException("{$variable} holds a semicolon, a control character or a space at either end, which the DSN the dev tools copy the database by cannot carry; nothing was copied.");
+            }
+            $dsn .= ";{$part}={$value}";
+        }
+
+        return new Secret($dsn);
+    }
+
+    /**
+     * A copy `render --dump` or `mcp` made of the app's database on its
+     * server (tinvar/testing's ServerCopy, ADR 0113), by the DSN the dev
+     * tools hand the app, opened as the app's own database is --
+     * PdoConnection::server(), so a MySQL session reads names in double
+     * quotes. A copy and nothing else: a database whose name is not one
+     * ServerCopy makes -- `tinvar_dump_`, the host's hash, the pid that made
+     * it and a random part -- is refused, so nothing opens the app's own
+     * database, or any other, this way (ADR 0173).
+     *
+     * @throws \RuntimeException for a DSN that names no copy, or names one by what this app opens no database by
+     */
+    private static function copyConnection(#[\SensitiveParameter] string $dsn): PdoConnection
+    {
+        [$scheme, $rest] = explode(':', $dsn, 2);
+        $parts = [];
+        foreach (explode(';', $rest) as $pair) {
+            if (trim($pair) === '') {
+                continue;
+            }
+            $at = strpos($pair, '=');
+            if ($at === false) {
+                throw new \RuntimeException("The copy's {$scheme} DSN has a part that is not key=value; it was not opened.");
+            }
+            $parts[strtolower(trim(substr($pair, 0, $at)))] = trim(substr($pair, $at + 1));
+        }
+
+        $name = $parts['dbname'] ?? '';
+        if (preg_match('/^tinvar_dump_[0-9a-f]{8}_[1-9][0-9]{0,9}_[0-9a-f]{8}\z/', $name) !== 1) {
+            throw new \RuntimeException("A database on a server is named to the Kernel by its DSN only as a copy `render --dump` made (tinvar_dump_...), and {$name} is not a copy: the app's own database is opened from its config alone.");
+        }
+        // charset is taken and not read: a MySQL connection is utf8mb4, as
+        // the app's own is (DatabaseDriver::dsn()).
+        $unknown = array_diff(array_keys($parts), ['host', 'port', 'dbname', 'user', 'password', 'charset']);
+        if ($unknown !== []) {
+            throw new \RuntimeException("The copy's {$scheme} DSN names " . implode(', ', $unknown) . ', which this app opens no database by; it was not opened.');
+        }
+        $port = $parts['port'] ?? null;
+        if ($port !== null && preg_match('/^[1-9][0-9]{0,4}\z/', $port) !== 1) {
+            throw new \RuntimeException("The copy's {$scheme} DSN names a port that is not one; it was not opened.");
+        }
+
+        return PdoConnection::server(
+            $scheme === 'pgsql' ? DatabaseDriver::Postgres : DatabaseDriver::Mysql,
+            $parts['host'] ?? '',
+            $port === null ? null : (int) $port,
+            $name,
+            $parts['user'] ?? null,
+            $parts['password'] ?? null,
             'app',
         );
     }
