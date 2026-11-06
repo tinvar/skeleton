@@ -853,13 +853,12 @@ final class Kernel implements TestableApplication, Terminable
      * metadata is enabled; one that arrived would fail the check until it
      * is named here and locked (`bin/tinvar packages:lock`).
      *
-     * @tinvar/react and @tinvar/renderer are not published on npm yet, and
-     * nobody has claimed the scope there: a package under either name could
-     * be anyone's. So they come from inside the app -- their `npm pack`
-     * tarballs, depended on as `file:` -- or not at all, and `bin/tinvar
-     * setup` installs nothing while package-lock.json says otherwise
-     * (ADR 0138). Take the entry out once they are published under a scope
-     * the project holds.
+     * @tinvar/mail, @tinvar/react and @tinvar/renderer come from npm's
+     * registry, where the project holds the scope, at the sha512
+     * package-lock.json pins (ADR 0138, 0174). An app that should take
+     * them from inside itself instead -- `npm pack` tarballs, depended on
+     * as `file:` -- names `@tinvar/*` in the policy's `unpublished`, and
+     * the check then refuses them from any registry.
      */
     /**
      * The app's panels: the admin panel, behind RequireAdmin. An
@@ -881,7 +880,6 @@ final class Kernel implements TestableApplication, Terminable
                 'fsevents' => "Vite's file watcher on macOS: npm builds its binding.gyp. Optional, and skipped elsewhere.",
             ],
             registries: [PackagePolicy::NPM_REGISTRY, 'https://design.chopper.dev/packages/'],
-            unpublished: ['@tinvar/*'],
         );
     }
 
