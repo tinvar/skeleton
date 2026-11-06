@@ -1010,14 +1010,34 @@ final class Kernel implements TestableApplication, Terminable
      * a semicolon ends a DSN's value -- `secret;dbname=other` would name
      * another database -- and the DSN is read with each value's ends trimmed.
      *
-     * @throws \RuntimeException for a user or password a DSN cannot carry
+     * On MySQL the copy is opened by the copies' user's DSN,
+     * TINVAR_DUMP_MYSQL_DSN, so one this app could not open -- no host, a
+     * socket -- is refused here, before a copy is made to no end.
+     *
+     * @throws \RuntimeException for a user or password a DSN cannot carry, a copies' user's DSN this
+     *         app could not open, or an SQLite path that reads as a DSN
      * @throws \InvalidArgumentException for a host or database name a DSN cannot carry (DatabaseDriver::dsn())
      */
     public static function devToolsDatabase(): string|Secret
     {
         $config = self::config();
         if (!$config->databaseDriver->isServer()) {
-            return self::databasePath();
+            // A path that reads as a server's DSN would be copied as one.
+            $path = self::databasePath();
+            if (str_starts_with($path, 'pgsql:') || str_starts_with($path, 'mysql:')) {
+                throw new \RuntimeException('APP_DATABASE reads as a server\'s DSN, and APP_DATABASE_DRIVER says SQLite: name the SQLite file there, or the server by APP_DATABASE_DRIVER and the rest; nothing was copied.');
+            }
+
+            return $path;
+        }
+        // On MySQL the copy is opened by the copies' user's DSN: one this app
+        // could not open is refused now, before anything is copied.
+        $copies = $config->databaseDriver === DatabaseDriver::Mysql ? FrameworkConfig::load()->dumpMysqlDsn : null;
+        if ($copies !== null) {
+            $why = self::unopenable(self::dsnParts($copies->reveal())[1], database: false);
+            if ($why !== null) {
+                throw new \RuntimeException("TINVAR_DUMP_MYSQL_DSN {$why}, and the copy is opened by it as this app opens its database; nothing was copied.");
+            }
         }
 
         $dsn = $config->databaseDriver->dsn((string) $config->databaseHost, $config->databasePort, (string) $config->databaseName);
@@ -1052,33 +1072,16 @@ final class Kernel implements TestableApplication, Terminable
      */
     private static function copyConnection(#[\SensitiveParameter] string $dsn): PdoConnection
     {
-        [$scheme, $rest] = explode(':', $dsn, 2);
-        $parts = [];
-        foreach (explode(';', $rest) as $pair) {
-            if (trim($pair) === '') {
-                continue;
-            }
-            $at = strpos($pair, '=');
-            if ($at === false) {
-                throw new \RuntimeException("The copy's {$scheme} DSN has a part that is not key=value; it was not opened.");
-            }
-            $parts[strtolower(trim(substr($pair, 0, $at)))] = trim(substr($pair, $at + 1));
-        }
-
+        [$scheme, $parts] = self::dsnParts($dsn);
         $name = $parts['dbname'] ?? '';
         if (preg_match('/^tinvar_dump_[0-9a-f]{8}_[1-9][0-9]{0,9}_[0-9a-f]{8}\z/', $name) !== 1) {
             throw new \RuntimeException("A database on a server is named to the Kernel by its DSN only as a copy `render --dump` made (tinvar_dump_...), and {$name} is not a copy: the app's own database is opened from its config alone.");
         }
-        // charset is taken and not read: a MySQL connection is utf8mb4, as
-        // the app's own is (DatabaseDriver::dsn()).
-        $unknown = array_diff(array_keys($parts), ['host', 'port', 'dbname', 'user', 'password', 'charset']);
-        if ($unknown !== []) {
-            throw new \RuntimeException("The copy's {$scheme} DSN names " . implode(', ', $unknown) . ', which this app opens no database by; it was not opened.');
+        $why = self::unopenable($parts);
+        if ($why !== null) {
+            throw new \RuntimeException("The copy's {$scheme} DSN {$why}; it was not opened.");
         }
         $port = $parts['port'] ?? null;
-        if ($port !== null && preg_match('/^[1-9][0-9]{0,4}\z/', $port) !== 1) {
-            throw new \RuntimeException("The copy's {$scheme} DSN names a port that is not one; it was not opened.");
-        }
 
         return PdoConnection::server(
             $scheme === 'pgsql' ? DatabaseDriver::Postgres : DatabaseDriver::Mysql,
@@ -1089,6 +1092,54 @@ final class Kernel implements TestableApplication, Terminable
             $parts['password'] ?? null,
             'app',
         );
+    }
+
+    /**
+     * A DSN's scheme and its parts, read as tinvar/testing's ServerCopy reads
+     * one: split at each semicolon and at a part's first equals sign, each
+     * key lower-cased and each value trimmed.
+     *
+     * @return array{string, array<string, string>}
+     * @throws \RuntimeException for a part that is not key=value
+     */
+    private static function dsnParts(#[\SensitiveParameter] string $dsn): array
+    {
+        [$scheme, $rest] = array_pad(explode(':', $dsn, 2), 2, '');
+        $parts = [];
+        foreach (explode(';', $rest) as $pair) {
+            if (trim($pair) === '') {
+                continue;
+            }
+            $at = strpos($pair, '=');
+            if ($at === false) {
+                throw new \RuntimeException("A {$scheme} DSN the dev tools were handed has a part that is not key=value; nothing was opened.");
+            }
+            $parts[strtolower(trim(substr($pair, 0, $at)))] = trim(substr($pair, $at + 1));
+        }
+
+        return [$scheme, $parts];
+    }
+
+    /**
+     * Why PdoConnection::server() could not open a database by $parts as
+     * this app opens its own -- by host, port and name -- or null when it
+     * can. charset is taken and not read: a MySQL connection is utf8mb4, as
+     * the app's own is (DatabaseDriver::dsn()).
+     *
+     * @param array<string, string> $parts
+     * @param bool $database whether $parts must name the database: a copy's do, the copies' user's need not
+     */
+    private static function unopenable(#[\SensitiveParameter] array $parts, bool $database = true): ?string
+    {
+        $unknown = array_diff(array_keys($parts), ['host', 'port', 'dbname', 'user', 'password', 'charset']);
+
+        return match (true) {
+            $unknown !== [] => 'names ' . implode(', ', $unknown) . ', which this app opens no database by',
+            ($parts['host'] ?? '') === '' || preg_match('/[;=\s]/', $parts['host']) === 1 => 'names no host this app reaches a database by',
+            isset($parts['port']) && preg_match('/^[1-9][0-9]{0,4}\z/', $parts['port']) !== 1 => 'names a port that is not one',
+            $database && (($parts['dbname'] ?? '') === '' || preg_match('/[;=\s]/', $parts['dbname']) === 1) => 'names no database this app opens',
+            default => null,
+        };
     }
 
     /** APP_DATABASE, or database/app.sqlite. */
