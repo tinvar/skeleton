@@ -362,6 +362,7 @@ final class Kernel implements TestableApplication, Terminable
             csrf: $this->csrf,
             cookieName: self::SESSION_COOKIE,
             limits: $limits,
+            orm: $this->orm,
         );
         $this->accounts->register($container)
             ->instance(Dispatcher::class, $jobs)
