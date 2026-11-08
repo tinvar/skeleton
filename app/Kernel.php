@@ -115,6 +115,7 @@ use Tinvar\Render\RouteToken;
 use Tinvar\Render\SocketTrust;
 use Tinvar\Routing\LoadedRoute;
 use Tinvar\Routing\RouteRegistry;
+use Tinvar\Endpoints\EndpointRegistry;
 use Tinvar\Support\AppKey;
 use Tinvar\Support\StateFile;
 use Tinvar\Support\BuildProfile;
@@ -172,6 +173,7 @@ final class Kernel implements TestableApplication, Terminable
     public readonly Orm $orm;
     public readonly QueryRegistry $queries;
     public readonly RouteRegistry $routes;
+    public readonly EndpointRegistry $endpoints;
     public readonly ActionRegistry $actions;
 
     /** The accounts kit: the session, sign-in and every account flow (ADR 0153). */
@@ -284,6 +286,11 @@ final class Kernel implements TestableApplication, Terminable
 
         $this->routes = new RouteRegistry($classes->models);
         $this->routes->registerAll($classes->routes);
+
+        // The routes that are not pages -- an API, a download, a webhook's
+        // callback: #[Get], #[Post] and #[Endpoint] methods (ADR 0067).
+        $this->endpoints = new EndpointRegistry($classes->models);
+        $this->endpoints->registerAll($classes->endpoints);
 
         $policies = new PolicyRegistry($container->resolver());
         $policies->registerAll($classes->policies);
@@ -425,6 +432,7 @@ final class Kernel implements TestableApplication, Terminable
                 $telemetry->metrics,
                 $telemetry->logger,
             ),
+            endpoints: $this->endpoints,
             standIns: $standIns,
         );
 
