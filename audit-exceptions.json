@@ -1,11 +1,3 @@
 {
-  "exceptions": [
-    {
-      "advisory": "GHSA-gcqx-w48m-w2h4",
-      "ecosystem": "npm",
-      "package": "deepmerge",
-      "reason": "Prototype poisoning of mergeObject()'s result. deepmerge 4.3.1 is the latest release and every one from 4.2.0 is affected, so there is nothing to move to. It is installed and never loaded: it reaches the app only as html-to-text 9.0.5 <- @react-email/render <- @react-email/components, an optional peer dependency of @meridian/ui that npm installs. Only @meridian/ui/emails/* imports @react-email, and the app imports nothing from that subpath, so no build or renderer bundle holds it and no request data can reach it. Even if it were loaded, html-to-text merges only its own defaults with options the calling code sets. Low severity, below the moderate gate; kept here so the review is written down (ADR 0137).",
-      "expires": "2027-01-31"
-    }
-  ]
+  "exceptions": []
 }

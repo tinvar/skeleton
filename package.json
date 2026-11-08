@@ -35,7 +35,8 @@
     "vitest": "5.0.5"
   },
   "overrides": {
-    "minimatch": "11.0.3"
+    "minimatch": "11.0.3",
+    "@react-email/render": "2.2.0"
   },
   "scripts": {
     "build": "vite build && php bin/tinvar build:fragments && php bin/tinvar discover",
