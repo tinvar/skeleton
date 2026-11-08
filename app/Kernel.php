@@ -786,6 +786,10 @@ final class Kernel implements TestableApplication, Terminable
             csrfToken: self::stringOrNull($request->attribute(HttpKernel::CSRF_TOKEN)),
             flash: self::arrayOrEmpty($request->attribute(HttpKernel::FLASH)),
             head: [HeadTag::title(self::NAME)],
+            // What route() writes a link to a page on another host with
+            // (ADR 0149, 0185): the hosts this page may link to, absolute
+            // there. Null where the app routes on no host.
+            hosts: $this->http->hostsFor($request, $loaded),
         );
         if ($payloadOnly) {
             $frame['rsc'] = true;
