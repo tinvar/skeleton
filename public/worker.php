@@ -6,8 +6,8 @@ declare(strict_types=1);
  * The app as a FrankenPHP worker: booted once per worker thread, then
  * serving request after request until it is recycled.
  *
- * Started by FrankenPHP from the Caddyfile -- by bin/serve, or
- * `bin/tinvar serve` -- with TINVAR_SOCKET naming the renderers.
+ * Started by FrankenPHP from the Caddyfile -- by `php tinvar serve` --
+ * with TINVAR_SOCKET naming the renderers.
  */
 
 use App\Kernel;

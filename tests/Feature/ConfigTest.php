@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * The app's settings, through App\Config\AppConfig: declared as
- * `bin/tinvar check` holds them, and a value that is not what it should be
+ * `php tinvar check` holds them, and a value that is not what it should be
  * refused, by its variable's name, rather than read as something near it.
  */
 
@@ -15,7 +15,7 @@ use App\Kernel;
 use Tinvar\Config\ConfigException;
 use Tinvar\Config\Configs;
 
-it('declares its config as bin/tinvar check holds it', function () {
+it('declares its config as tinvar check holds it', function () {
     expect(Configs::check(Kernel::classes()->configs))->toBe([]);
 });
 

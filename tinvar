@@ -6,17 +6,17 @@ declare(strict_types=1);
 /**
  * The app's command line: the framework's commands, pointed at this app.
  *
- *   bin/tinvar help
+ *   php tinvar help
  *
- * Tinvar\Console\AppConsole owns the commands every app has -- serve, dev,
- * the builds, the migrations, the generators, codegen and the check --
+ * Tinvar\Console\AppConsole owns the commands every app has -- serve (and
+ * serve --dev, dev mode), the builds, the migrations, the generators, codegen and the check --
  * handed this app's Kernel, the classes it discovers and its directories.
  * The app's own #[Command] classes are listed and run by the names they
  * declare. Or add one here: `->command('name', 'usage', 'what it does',
  * fn (array $arguments): int => ...)`.
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 use App\Kernel;
 use Tinvar\Config\ConfigException;
@@ -34,7 +34,7 @@ use Tinvar\Server\AssetRouteRules;
 use Tinvar\Testing\ResourceTestSource;
 
 /** The app's root: where composer.json, package.json and their lockfiles are. */
-const APP_ROOT = __DIR__ . '/..';
+const APP_ROOT = __DIR__;
 
 // .env, on a developer's machine, before anything reads config: what
 // `tinvar new` wrote -- the database, mail, the hosts -- for this CLI and
@@ -78,16 +78,15 @@ $console = new AppConsole(
     kernel: Kernel::class,
     // `serve` writes the renderers' lines into the app's log as well.
     rendererLog: Kernel::rendererLog(...),
-    // `serve --worker` and `dev --worker` -- as bin/serve and bin/dev run
-    // them -- run this CLI's queue:work beside the server: the account
-    // emails go out through it.
+    // `serve` and `serve --dev` run this CLI's queue:work beside the server
+    // (--no-worker for none): the account emails go out through it.
     workers: true,
     // The migrations, and `doctor`, open the database the app does: the
     // SQLite file, made by `migrate` where it is missing, or the Postgres or
     // MySQL server APP_DATABASE_DRIVER names.
     connect: static fn (bool $create): Connection => $create || Kernel::config()->databaseDriver->isServer() || is_file(Kernel::databasePath())
         ? Kernel::connection($create)
-        : throw new MigrationRefused('No database at ' . Kernel::databasePath() . '; `bin/tinvar migrate` makes one.'),
+        : throw new MigrationRefused('No database at ' . Kernel::databasePath() . '; `php tinvar migrate` makes one.'),
     // What `db:seed` fills the database with: a welcome note, where it has none.
     seeder: new App\Database\Seeders\WelcomeNote(),
     // Where `key:generate` and `doctor` find the key and the probe token.
@@ -128,7 +127,7 @@ exit($console
     // The public keys node agents and a console edge verify with (ADR 0119).
     ->withGatewayKeys(Kernel::appKey(...))
     ->command('setup', 'setup [--no-next-steps]', 'What composer create-project runs once: the app key and probe token, codegen, the database, and npm ci with no install scripts, from a lock tinvar check passes; `tinvar new` runs it with --no-next-steps, and says them itself', static fn (array $arguments): int => setup($console, !in_array('--no-next-steps', $arguments, true)))
-    ->command('render', 'render --dump PATH [--build=DIR | --dev] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/), or with --dev through the running `tinvar dev`', static fn (array $arguments): int => devTools('render', $arguments))
+    ->command('render', 'render --dump PATH [--build=DIR | --dev] [--part=html|payload] [--json]', 'Render one page through the real renderers on a copy of the database, and print its HTML and RSC payload with cookies and tokens cut out. Only where TINVAR_ENV is local, development or testing, through a build made with --profile=test (dist-test/), or with --dev through the running `tinvar serve --dev`', static fn (array $arguments): int => devTools('render', $arguments))
     ->command('probe:token', 'probe:token', "Print the token /_health, /_ready and /_metrics take under this environment's profile: bound to it, so under staging not the one TINVAR_PROBE_TOKEN holds", static function (array $arguments): int {
         echo Kernel::probeToken(), "\n";
 
@@ -153,7 +152,7 @@ function kernelCommand(string $command, array $arguments): int
         try {
             $renderer = Tinvar\Server\RendererProcess::start(APP_ROOT, Kernel::buildDirectory() . '/rsc/index.js');
         } catch (RuntimeException $e) {
-            fwrite(STDERR, $e->getMessage() . "\nBuild the app first (npm run build), or run the queue through bin/serve or bin/dev, which start their own renderers.\n");
+            fwrite(STDERR, $e->getMessage() . "\nBuild the app first (npm run build), or run the queue through `php tinvar serve` or `serve --dev`, which start their own renderers.\n");
 
             return 1;
         }
@@ -207,7 +206,7 @@ function setup(AppConsole $console, bool $nextSteps = true): int
     // installs, and the next steps say to migrate once it is there.
     $migrated = $console->migrate('migrate', []) === 0;
     if (!$migrated) {
-        fwrite(STDERR, "\nThe database is not ready, so nothing was migrated: create it, then run `bin/tinvar migrate`; `bin/tinvar doctor` says what it cannot reach.\n");
+        fwrite(STDERR, "\nThe database is not ready, so nothing was migrated: create it, then run `php tinvar migrate`; `php tinvar doctor` says what it cannot reach.\n");
     }
 
     $npm = null;
@@ -234,7 +233,7 @@ function setup(AppConsole $console, bool $nextSteps = true): int
         }
     }
 
-    // FrankenPHP, which bin/serve and bin/dev run: where none is found, the
+    // FrankenPHP, which `serve` and `serve --dev` run: where none is found, the
     // release's binary for this machine, held to its pinned sha256 before it
     // is made executable (ADR 0175). Without one -- offline, or a machine
     // FrankenPHP publishes no binary for -- the next steps say how.
@@ -251,19 +250,19 @@ function setup(AppConsole $console, bool $nextSteps = true): int
         echo "  # (packages/react, packages/renderer of the framework's repository) into\n";
         echo "  # .packages/, depend on them in package.json as file:.packages/<tarball>,\n";
         echo "  npm install --ignore-scripts        # then this, which locks them; Node 22.13 or later\n";
-        echo "  bin/tinvar check\n";
+        echo "  php tinvar check\n";
     } elseif (!$installed) {
         echo "  npm ci --ignore-scripts             # Node 22.13 or later\n";
     }
     if (!$migrated) {
-        echo "  bin/tinvar migrate                  # once the database is there\n";
+        echo "  php tinvar migrate                  # once the database is there\n";
     }
     if (!$frankenphp) {
-        echo "  bin/tinvar frankenphp:install       # FrankenPHP, which bin/serve and bin/dev run\n";
+        echo "  php tinvar frankenphp:install       # FrankenPHP, which serve runs\n";
     }
-    echo "  bin/tinvar doctor                   # every check the app needs, each problem with its fix\n";
-    echo "  bin/dev                             # dev mode: renders from source, reloads as you edit\n";
-    echo "  npm run build && bin/serve          # or the build, as production serves it\n";
+    echo "  php tinvar doctor                   # every check the app needs, each problem with its fix\n";
+    echo "  php tinvar serve --dev              # dev mode: renders from source, reloads as you edit\n";
+    echo "  npm run build && php tinvar serve   # or the build, as production serves it\n";
     echo "  vendor/bin/pest && npx vitest run   # the tests\n\n";
     echo "Both serve with FrankenPHP: tools/frankenphp, unless TINVAR_FRANKENPHP or the PATH names another.\n";
 
@@ -307,7 +306,7 @@ function devTools(string $command, array $arguments): int
         app: $root,
         projectRoot: $root,
         database: $database,
-        // Through `tinvar dev` (--dev), $dev is the deferred manifest its dev
+        // Through `tinvar serve --dev` (--dev), $dev is the deferred manifest its dev
         // server keeps, and the Kernel is built in dev mode, as dev's is.
         // $database is the copy -- an SQLite file, or on a server its DSN,
         // password and all -- and $files where what the app keeps beside its

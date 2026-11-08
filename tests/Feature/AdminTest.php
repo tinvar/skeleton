@@ -6,7 +6,7 @@ declare(strict_types=1);
  * The admin panel and its notes (App\Http\Resources\NoteResource), through
  * the whole PHP request path: the panel's guard, then each screen's policy,
  * against a database of each test's own. APP_ADMINS names the one admin;
- * outside `bin/dev`, an unset list lets nobody in.
+ * outside `php tinvar serve --dev`, an unset list lets nobody in.
  */
 
 namespace Tests\Feature;
@@ -102,7 +102,7 @@ it('holds a note\'s changes to the admins wherever they are asked', function () 
     expect(Note::query($kernel->orm)->count())->toBe(1);
 });
 
-it('lets every signed-in account in under bin/dev while APP_ADMINS is unset, and never a guest', function () {
+it('lets every signed-in account in under `tinvar serve --dev` while APP_ADMINS is unset, and never a guest', function () {
     $user = new User();
     $user->email = 'anyone@example.com';
 

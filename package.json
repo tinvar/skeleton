@@ -39,7 +39,7 @@
     "@react-email/render": "2.2.0"
   },
   "scripts": {
-    "build": "vite build && php bin/tinvar build:fragments && php bin/tinvar discover",
+    "build": "vite build && php tinvar build:fragments && php tinvar discover",
     "lint": "eslint resources && tsc --noEmit",
     "test": "vitest run"
   }

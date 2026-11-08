@@ -9,7 +9,7 @@
 .DS_Store
 
 # Secrets and state: never committed. The app key lives outside the project
-# (bin/tinvar setup says where); the database and the files beside it here.
+# (tinvar setup says where); the database and the files beside it here.
 .env
 .env.*
 !.env.example

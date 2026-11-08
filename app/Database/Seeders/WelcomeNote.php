@@ -11,7 +11,7 @@ use Tinvar\Orm\Migrations\DatabaseSeeder;
 use Tinvar\Orm\Orm;
 
 /**
- * What `bin/tinvar db:seed` fills a new app's database with: one note, so
+ * What `php tinvar db:seed` fills a new app's database with: one note, so
  * the home page has something on it. `tinvar new` runs it once; it adds
  * nothing to a database that has a note already.
  *

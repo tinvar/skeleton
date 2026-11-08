@@ -1,6 +1,6 @@
 # The app under FrankenPHP in worker mode.
 #
-# Started by `bin/tinvar serve` (or bin/serve), which sets the variables read
+# Started by `php tinvar serve`, which sets the variables read
 # here: where to listen (TINVAR_HOST, TINVAR_PORT), where the app is
 # (TINVAR_APP_ROOT) and its build (TINVAR_BUILD_DIR), how many workers to run
 # (TINVAR_WORKERS), and the renderers' socket (TINVAR_SOCKET, read by the
@@ -86,7 +86,7 @@ http://:{$TINVAR_PORT:8080} {
 		# would hold every other worker's response until `write_idle` cut it
 		# off. Here a response is held whole, in memory, while the worker
 		# writes it, and Caddy sends it once the worker is done, outside the
-		# mutex. `bin/tinvar check` refuses a Caddyfile without this block.
+		# mutex. `php tinvar check` refuses a Caddyfile without this block.
 		#
 		# Not every response: Tinvar\Http\Sapi marks one to pass on as it
 		# comes -- larger than a megabyte, or streamed with no length -- with

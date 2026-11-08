@@ -140,7 +140,7 @@ use App\Auth\Flashes;
  * What you add registers itself: a #[Page] or #[Layout], a #[Query], a
  * class with #[Action] methods, a model, a #[Policy(Model::class)], a
  * #[Config] class -- each is discovered under App\ by what it declares,
- * whatever folder it is in (classes(), ADR 0146). `bin/tinvar check` holds
+ * whatever folder it is in (classes(), ADR 0146). `php tinvar check` holds
  * every one of them to the security model's build rules. One panel, the
  * admin panel, is defined in panels(): an #[AdminResource] in it is a list,
  * a record and its forms under /admin, for the accounts APP_ADMINS names.
@@ -161,7 +161,7 @@ final class Kernel implements TestableApplication, Terminable
      * Every class the app registers: its pages and layouts, queries,
      * actions, policies, models, #[Config] classes and the rest, discovered
      * under App\ by what each declares (ADR 0146) -- from the build's
-     * manifest in production, which `bin/tinvar build` writes and which
+     * manifest in production, which `php tinvar build` writes and which
      * must be there, and from a scan kept while the files stay as they were
      * anywhere else. The framework's own config is added by hand.
      */
@@ -185,7 +185,7 @@ final class Kernel implements TestableApplication, Terminable
     /** Sends the app's email, through the renderer, now or on the queue worker. */
     public readonly Mailer $mailer;
 
-    /** queue:work and the rest of the framework's commands, over this app (bin/tinvar). */
+    /** queue:work and the rest of the framework's commands, over this app (tinvar). */
     public readonly Console $console;
 
     /** The session cookie's name: `__Host-`, so nothing outside this origin can plant it. */
@@ -271,7 +271,7 @@ final class Kernel implements TestableApplication, Terminable
             ->instance(Orm::class, $this->orm)
             ->instance(Throttle::class, $throttle)
             ->instance(AuthContext::class, $auth)
-            // Who may open the admin panel: APP_ADMINS, or under `bin/dev`
+            // Who may open the admin panel: APP_ADMINS, or under `php tinvar serve --dev`
             // with it unset, every signed-in account (App\Auth\Admin\Admins).
             ->instance(Admins::class, Admins::fromList(self::config()->admins, openInDev: $dev));
 
@@ -332,8 +332,8 @@ final class Kernel implements TestableApplication, Terminable
         // Background work, in the app's own database (its tables are a
         // migration): a job dispatched while a row is written is a row
         // written in the same transaction, so it exists exactly when the
-        // row does. `bin/tinvar queue:work` runs it, and `bin/dev` and
-        // `bin/serve --worker` run that.
+        // row does. `php tinvar queue:work` runs it, and `php tinvar serve --dev` and
+        // `php tinvar serve` run that.
         $this->queue = $queue ?? new DatabaseQueue($connection);
         $jobSigner = new Signer($key, Envelope::PURPOSE);
         $jobs = new Dispatcher($this->queue, $this->orm, $jobSigner, $auth, $panels, self::panels());
@@ -860,11 +860,11 @@ final class Kernel implements TestableApplication, Terminable
     // ------------------------------------------------------- configuration
 
     /**
-     * What the app lets into its dependency tree, which `bin/tinvar check`
+     * What the app lets into its dependency tree, which `php tinvar check`
      * holds composer.lock and package-lock.json to: npm's registry, and
      * Meridian's own host for the design system. No package with framework
      * metadata is enabled; one that arrived would fail the check until it
-     * is named here and locked (`bin/tinvar packages:lock`).
+     * is named here and locked (`php tinvar packages:lock`).
      *
      * @tinvar/mail, @tinvar/react and @tinvar/renderer come from npm's
      * registry, where the project holds the scope, at the sha512
@@ -875,7 +875,7 @@ final class Kernel implements TestableApplication, Terminable
      */
     /**
      * The app's panels: the admin panel, behind RequireAdmin. An
-     * #[AdminResource(panel: Admins::PANEL)] -- `bin/tinvar make:resource
+     * #[AdminResource(panel: Admins::PANEL)] -- `php tinvar make:resource
      * --panel=admin` writes one -- is drawn by the three views under
      * resources/pages/admin/resources, and a page joins the panel with
      * #[Panel(Admins::PANEL)].
@@ -936,9 +936,9 @@ final class Kernel implements TestableApplication, Terminable
      * The token /_health, /_ready and /_metrics let in: TINVAR_PROBE_TOKEN,
      * or the one generated into TINVAR_PROBE_TOKEN_FILE -- or, by default,
      * into this user's state directory beside the app key -- the first time
-     * one is needed. `bin/tinvar setup` makes it, and says where it is.
+     * one is needed. `php tinvar setup` makes it, and says where it is.
      * Bound to the profile as the app key is (AppKey::secret(), ADR 0102):
-     * under staging a probe sends the token `bin/tinvar probe:token` prints.
+     * under staging a probe sends the token `php tinvar probe:token` prints.
      */
     public static function probeToken(): string
     {
@@ -986,7 +986,7 @@ final class Kernel implements TestableApplication, Terminable
      * databasePath(), or a Postgres or MySQL server by APP_DATABASE_HOST,
      * APP_DATABASE_PORT and APP_DATABASE_NAME, as APP_DATABASE_USER with
      * APP_DATABASE_PASSWORD (or the file APP_DATABASE_PASSWORD_FILE names).
-     * The migrations run against it (`bin/tinvar migrate`) as the server does.
+     * The migrations run against it (`php tinvar migrate`) as the server does.
      *
      * @param bool $create make the SQLite file where it is missing, as migrating does
      */
@@ -1009,7 +1009,7 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * What `bin/tinvar render --dump` and `mcp` copy, and render on the copy
+     * What `php tinvar render --dump` and `mcp` copy, and render on the copy
      * of (tinvar/testing's DatabaseSnapshot, ADR 0173): the SQLite file at
      * databasePath(), or the Postgres or MySQL database the config names,
      * as the DSN the server's own dump tools are handed it by (ADR 0113) --
@@ -1292,7 +1292,7 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * The build this code is: TINVAR_BUILD, which bin/serve sets to the hash
+     * The build this code is: TINVAR_BUILD, which `tinvar serve` sets to the hash
      * of the client manifest it built, or `dev`.
      */
     public static function build(): string
@@ -1301,7 +1301,7 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * Where `bin/tinvar build:current`, `build:revoke` and the rest keep what
+     * Where `php tinvar build:current`, `build:revoke` and the rest keep what
      * they record: TINVAR_BUILDS_FILE, or a file beside the database. Never
      * in dist/, which every build replaces, revocations with it.
      */
@@ -1345,7 +1345,7 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * The fragment manifest `bin/tinvar build:fragments` wrote beside the
+     * The fragment manifest `php tinvar build:fragments` wrote beside the
      * build: which routes may mint fragment tokens, and what each route's
      * renders may query. Missing until the app is built, when no render may
      * mint or query.

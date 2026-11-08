@@ -30,7 +30,7 @@ type Page = (props: { data: never; params: never }) => ReactNode;
 /**
  * Each view PHP may name, with the layouts around it, outermost first: the
  * order PHP runs their loaders. Add a page's view here when you add the
- * page (`bin/tinvar make:page` says so).
+ * page (`php tinvar make:page` says so).
  */
 const ROUTES: Record<string, { Page: Page; layouts: readonly 'app'[] }> = {
   'app/home': { Page: HomePage as Page, layouts: ['app'] },

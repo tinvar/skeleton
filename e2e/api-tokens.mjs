@@ -1,5 +1,5 @@
 // The skeleton's API tokens page in a real browser (ADR 0159), against an
-// app bin/serve is serving, its queue worker beside it and its mail in the log:
+// app `tinvar serve` is serving, its queue worker beside it and its mail in the log:
 //
 //   node e2e/api-tokens.mjs http://localhost:PORT path/to/database/app.sqlite-mail.log
 //

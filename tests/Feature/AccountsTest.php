@@ -145,7 +145,7 @@ function throttleClock(): \Closure
     return static fn (): int => $at;
 }
 
-/** Works the mail queue, as `bin/tinvar queue:work` does. */
+/** Works the mail queue, as `php tinvar queue:work` does. */
 function work(Kernel $kernel): void
 {
     $output = new Output(static function (string $line): void {}, static function (string $line): void {});

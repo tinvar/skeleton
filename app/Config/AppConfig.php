@@ -14,12 +14,12 @@ use Tinvar\Orm\DatabaseDriver;
  * What the app reads from its environment: each key is a constructor
  * parameter, read from APP_ and its name in upper snake case, or from the
  * variable #[Env] names. Kernel::config() loads it; a key missing or
- * malformed stops the boot with the variable named, and `bin/tinvar
+ * malformed stops the boot with the variable named, and `tinvar
  * config` lists every key and where its value came from.
  *
  * Add a setting here rather than calling getenv(): it is typed, checked at
  * boot, and listed. A secret is typed Tinvar\Config\Secret and marked
- * #[\SensitiveParameter] -- `bin/tinvar check` refuses one that is not --
+ * #[\SensitiveParameter] -- `php tinvar check` refuses one that is not --
  * and read with reveal() where it is used:
  *
  *     #[\SensitiveParameter, Env(file: true)]
@@ -52,16 +52,16 @@ final readonly class AppConfig
         // The https origin the app is served on, as https://app.example:
         // account emails' links are built on it, and passkeys are made for
         // its host. Required where the environment says production; in
-        // development the address `bin/dev` serves on stands in.
+        // development the address `php tinvar serve --dev` serves on stands in.
         public ?string $url = null,
-        // Where `tinvar serve` and `tinvar dev` say they serve: the stand-in
+        // Where `tinvar serve` and `tinvar serve --dev` say they serve: the stand-in
         // for APP_URL in development. Set by them, not by you.
         #[Env('TINVAR_URL')]
         public ?string $servedAt = null,
         // The address the app's email comes from; required in production.
         public ?string $mailFrom = null,
         // The admin panel's accounts, by address, comma-separated, as
-        // `ada@example.com,grace@example.com`. Unset, `bin/dev` lets every
+        // `ada@example.com,grace@example.com`. Unset, `php tinvar serve --dev` lets every
         // signed-in account in, and anywhere else nobody (App\Auth\Admin\Admins).
         public ?string $admins = null,
         // Where mail goes while no TINVAR_MAIL_PROVIDER is named, in

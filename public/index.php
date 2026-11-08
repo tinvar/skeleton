@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 /**
  * The app's front controller, for FrankenPHP's classic mode, which
- * `bin/dev` (`tinvar dev`) runs every request through, and PHP's built-in
+ * `php tinvar serve --dev` runs every request through, and PHP's built-in
  * server. public/worker.php is the same app booted once per FrankenPHP
- * worker, which bin/serve runs.
+ * worker, which `tinvar serve` runs.
  */
 
 use App\Kernel;

@@ -7,7 +7,7 @@ declare(strict_types=1);
  * and no one for where they connect from. Loopback is no proof of being a
  * probe -- a proxy, a TLS terminator or the renderers on the same machine
  * all connect from it -- so it is trusted only when TINVAR_PROBE_TRUST_LOOPBACK
- * says 1. The token is TINVAR_PROBE_TOKEN, or the one `bin/tinvar setup`
+ * says 1. The token is TINVAR_PROBE_TOKEN, or the one `php tinvar setup`
  * generated beside the app key.
  */
 

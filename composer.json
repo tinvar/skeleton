@@ -36,12 +36,12 @@
   "prefer-stable": true,
   "scripts": {
     "post-create-project-cmd": [
-      "@php bin/tinvar setup"
+      "@php tinvar setup"
     ],
-    "check": "@php bin/tinvar check",
+    "check": "@php tinvar check",
     "test": [
-      "@php bin/tinvar codegen --check",
-      "@php bin/tinvar check",
+      "@php tinvar codegen --check",
+      "@php tinvar check",
       "@php vendor/bin/pest"
     ]
   }

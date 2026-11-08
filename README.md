@@ -18,36 +18,36 @@ sha256 the framework pins. Elsewhere, install FrankenPHP
 ```sh
 composer create-project tinvar/skeleton my-app
 cd my-app
-bin/dev
+php tinvar serve --dev
 ```
 
 `composer create-project` refuses a directory that is not empty. Once the
-app is installed it runs `bin/tinvar setup`, once: it generates the app key
+app is installed it runs `php tinvar setup`, once: it generates the app key
 and the probe token into your state directory (`~/.local/state/tinvar/`,
 never the project),
 writes the TypeScript the views use from the PHP, makes the SQLite database,
 runs `npm ci --ignore-scripts`, and downloads FrankenPHP where none is found
-(`bin/tinvar frankenphp:install` does that alone). It runs nothing else it
+(`php tinvar frankenphp:install` does that alone). It runs nothing else it
 fetched.
 
-`bin/dev` is dev mode: Vite's dev server renders the app from source, an
-edit shows in the open page, codegen runs again as the PHP changes, and the
-dev toolbar sits over each page. Loopback only, never in production;
-`bin/dev --tunnel` shares it through a Cloudflare quick tunnel
-(`brew install cloudflared` first), behind a share token in the address it
-prints. Started
-with `TINVAR_ENV=local`, it also draws the pages and components in
+`php tinvar serve --dev` is dev mode: it migrates the database, then Vite's
+dev server renders the app from source, an edit shows in the open page,
+codegen runs again as the PHP changes, and the dev toolbar sits over each
+page. Loopback only, never in production; `php tinvar serve --dev --tunnel`
+shares it through a Cloudflare quick tunnel (`brew install cloudflared`
+first), behind a share token in the address it prints. Started with
+`TINVAR_ENV=local`, it also draws the pages and components in
 `resources/workbench.tsx` on their own, from the samples there, at
-`/_vite/__workbench` and `/_vite/__playground`. `bin/tinvar render --dump
-PATH` prints a page's HTML and RSC payload, and `bin/tinvar mcp` is an MCP
-server for an assistant; both read a build made with `bin/tinvar build
+`/_vite/__workbench` and `/_vite/__playground`. `php tinvar render --dump
+PATH` prints a page's HTML and RSC payload, and `php tinvar mcp` is an MCP
+server for an assistant; both read a build made with `php tinvar build
 --profile=test --out=dist-test`, on a copy of the database -- on Postgres
 or MySQL, a copy made on its server, on MySQL as the user
 `TINVAR_DUMP_MYSQL_DSN` names. To serve the build as production does:
 
 ```sh
 npm run build
-bin/serve
+php tinvar serve
 ```
 
 ## What is here
@@ -68,11 +68,12 @@ database/migrations/      one migration per file
 resources/pages/          the views, one .tsx per page or layout
 resources/components/     server and 'use client' components
 resources/entries/        the renderer's rsc, ssr and browser entries
-resources/types/          what bin/tinvar codegen writes
+resources/types/          what tinvar codegen writes
 tests/Feature/            Pest: pages, queries and actions through PHP's request path
 tests/components/         Vitest: client components against codegen's mocks
 public/worker.php         the FrankenPHP worker
 Caddyfile                 how FrankenPHP serves the app
+tinvar                    the console: php tinvar serve, serve --dev, migrate, make:*, ...
 ```
 
 The home page lists notes with a query (`RecentNotes`) and adds one with an
@@ -94,8 +95,8 @@ through `app/Auth/Account/Users.php` -- change those two to keep your
 people in a table of your own. A page for signed-in users says
 `#[Middleware(RequireSignIn::class)]`.
 
-Its email goes through the queue, which `bin/dev` and `bin/serve` run
-beside the server. In development it lands in
+Its email goes through the queue, which `php tinvar serve` runs beside the
+server, with `--dev` or without. In development it lands in
 `database/app.sqlite-mail.log`, its links on `http://localhost:PORT`; open
 the app on `localhost` rather than 127.0.0.1, which passkeys refuse. In
 production set `APP_URL` (the https origin every link is built on and
@@ -121,16 +122,16 @@ panel (ADR 0152), drawn by the panel's three views in
 `resources/pages/admin/resources/`. `Kernel::panels()` defines the panel,
 behind `App\Auth\Admin\RequireAdmin`: a visitor is sent to sign in, and
 only the accounts `APP_ADMINS` names, comma-separated, are let in. With it
-unset, `bin/dev` lets every signed-in account in and everywhere else
-nobody may. `bin/tinvar make:resource Orders/Order --fields=... --panel=admin`
-adds a model's screens beside its own pages.
+unset, `php tinvar serve --dev` lets every signed-in account in and
+everywhere else nobody may. `php tinvar make:resource Orders/Order
+--fields=... --panel=admin` adds a model's screens beside its own pages.
 
-`bin/tinvar make:page`, `make:query`, `make:action`, `make:model` and
+`php tinvar make:page`, `make:query`, `make:action`, `make:model` and
 `make:migration` write the next ones into this layout, each registered by
 being there, and a page's view in `resources/entries/rsc.tsx`. Give a name
 a domain once the app has more than one: `make:page Orders/OrderDetail`
 writes `app/Http/Pages/Orders/OrderDetail.php` and its Data beside the
-domain's in `app/Http/Data/Orders/`. `bin/tinvar help` lists every command.
+domain's in `app/Http/Data/Orders/`. `php tinvar help` lists every command.
 
 ## Check it
 
@@ -138,16 +139,16 @@ domain's in `app/Http/Data/Orders/`. `bin/tinvar help` lists every command.
 vendor/bin/pest
 npx vitest run
 npm run lint
-bin/tinvar codegen --check
-bin/tinvar check
-bin/tinvar doctor
+php tinvar codegen --check
+php tinvar check
+php tinvar doctor
 ```
 
-`bin/tinvar doctor` checks everything the app needs to boot and serve, with
+`php tinvar doctor` checks everything the app needs to boot and serve, with
 this machine's environment, and reports every problem at once, each with
 its fix; `--fix` does the safe ones.
 
-`bin/tinvar check` holds every page, query and action to the security
+`php tinvar check` holds every page, query and action to the security
 model's build rules -- every model input is authorized, or says why not --
 and the lockfiles to `Kernel::packages()`.
 
@@ -158,13 +159,13 @@ The app reads its settings from the environment, through a typed
 is one variable, parsed to its type at boot, and a key missing or
 malformed stops the server with the variable named, never its value. A
 secret is typed `Tinvar\Config\Secret`, which no dump, log or render shows.
-`bin/tinvar config` lists every key and where its value came from, with
+`php tinvar config` lists every key and where its value came from, with
 secrets hidden; `.env.example` lists them with nothing secret filled in.
-On a developer's machine `bin/tinvar` reads `.env` into its environment
+On a developer's machine `tinvar` reads `.env` into its environment
 first, never over a variable you set and never a variable named like a
 secret: name a secret's file in its `_FILE` variable instead.
 The app key is `TINVAR_APP_KEY`, or the file
-`bin/tinvar setup` generated. `/_health`, `/_ready` and `/_metrics` let in
+`php tinvar setup` generated. `/_health`, `/_ready` and `/_metrics` let in
 the probe token alone, as `Authorization: Bearer <token>`: it is
 `TINVAR_PROBE_TOKEN`, or the `.probe-token` file setup generated beside the
 key. No caller gets in for being on loopback -- a TLS terminator on the
@@ -204,7 +205,7 @@ one more file there, named in its `_FILE` variable: `compose.yaml`'s header
 shows how.
 
 Put a TLS terminator in front: the cookies are `__Host-`, which browsers
-send over https alone. `bin/tinvar deploy:init fly` (or `render`,
+send over https alone. `php tinvar deploy:init fly` (or `render`,
 `railway`, `vps-systemd`, `vps-compose`) writes a platform's deployment,
 with its edge pinned as the trusted proxies, and generates its secrets
 outside the project.

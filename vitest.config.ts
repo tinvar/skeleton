@@ -3,7 +3,7 @@ import { tinvarTesting } from '@tinvar/renderer/vitest';
 import { defineConfig } from 'vitest/config';
 
 // The component tests: Vitest and React Testing Library in jsdom, against
-// the mocks and fakes `bin/tinvar codegen` writes under resources/types/testing.
+// the mocks and fakes `php tinvar codegen` writes under resources/types/testing.
 // A config of its own, not vite.config.ts: that one is the build, and
 // tinvarTesting() refuses to be in a build.
 //

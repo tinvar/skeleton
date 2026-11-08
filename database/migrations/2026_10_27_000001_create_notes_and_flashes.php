@@ -10,7 +10,7 @@ use Tinvar\Orm\Schema\Table;
  * The notes, and the flashes a form posted without script leaves for the
  * page it is sent back to (App\Auth\Flashes).
  *
- * `bin/tinvar make:migration` writes the next one from the models, by
+ * `php tinvar make:migration` writes the next one from the models, by
  * comparing them with the database: read it before you commit it.
  */
 return new class extends Migration {

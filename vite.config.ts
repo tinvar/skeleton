@@ -28,13 +28,13 @@ const compiledCss = () =>
 //   ssr     deserializes that stream and renders HTML
 //   client  hydrates the 'use client' islands, and nothing else
 //
-// The same config serves dev mode (`bin/dev`), where Vite's dev server is
+// The same config serves dev mode (`php tinvar serve --dev`), where Vite's dev server is
 // the renderer and these environments render from source.
 export default defineConfig(({ command }) => ({
   // StyleX first, so it compiles stylex.create() before the RSC plugin
   // splits the graph. deferredBoundaries() writes dist/rsc/deferred.json --
   // the <Deferred> components and the queries each view reaches -- which
-  // `bin/tinvar build:fragments` turns into the manifest PHP holds every
+  // `php tinvar build:fragments` turns into the manifest PHP holds every
   // render to. queryFunctions() makes the `@queries` modules codegen types.
   // serializableProps() refuses a build where a server component hands a
   // client component a function. buildProfile() records the profile the

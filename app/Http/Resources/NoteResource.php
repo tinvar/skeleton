@@ -21,7 +21,7 @@ use Tinvar\Resources\Sort;
  * and asking NotePolicy -- and drawn by the panel's three views,
  * resources/pages/admin/resources/.
  *
- * `bin/tinvar make:resource Orders/Order --fields=... --panel=admin`
+ * `php tinvar make:resource Orders/Order --fields=... --panel=admin`
  * writes one of these beside a model's own pages.
  */
 #[AdminResource(model: Note::class, panel: Admins::PANEL, path: '/admin/notes')]

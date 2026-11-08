@@ -17,7 +17,7 @@
 # repository, ADR 0059, 0063, 0068) with the shop's parts taken out: the
 # bases, the binaries and their sums, the users, the entrypoint and the
 # healthcheck are the same for any app. Every base is pinned by digest and
-# every binary fetched is held to its sha256; `bin/tinvar check` refuses a
+# every binary fetched is held to its sha256; `php tinvar check` refuses a
 # Dockerfile whose images are not pinned. To move one, change it and its sum
 # together, from the project's own published list.
 
@@ -71,11 +71,11 @@ RUN test -f composer.lock && test -f package-lock.json \
     && npm ci --ignore-scripts --no-audit --no-fund
 
 # The build, and the fragment manifest derived from it and the routes alone,
-# which `bin/serve --prebuilt` then leaves as it is. Then what the renderers
+# which `php tinvar serve --prebuilt` then leaves as it is. Then what the renderers
 # load at run time, and nothing they would only build with.
 RUN npx vite build \
-    && php bin/tinvar build:fragments \
-    && php bin/tinvar discover \
+    && php tinvar build:fragments \
+    && php tinvar discover \
     && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 # The tree as it ships: root's, so neither process can change a file; what
@@ -85,14 +85,14 @@ RUN set -eu; \
     app=10001; \
     out=/out/srv/app; \
     mkdir -p "$out"; \
-    cp -a app bin database public resources vendor node_modules dist Caddyfile \
+    cp -a app tinvar database public resources vendor node_modules dist Caddyfile \
         composer.json composer.lock package.json package-lock.json "$out/"; \
     rm -rf "$out/node_modules/.vite" "$out/database"/*.sqlite*; \
     chown -R 0:"$app" "$out"; \
     find "$out" -type d -exec chmod 0750 {} +; \
     find "$out" -type f -exec chmod 0640 {} +; \
     find "$out" -type l -exec chown -h 0:"$app" {} +; \
-    chmod 0750 "$out"/bin/*; \
+    chmod 0750 "$out"/tinvar; \
     for read in node_modules dist; do \
         find "$out/$read" -type d -exec chmod 0755 {} +; \
         find "$out/$read" -type f -exec chmod 0644 {} +; \
@@ -192,8 +192,8 @@ ENV TINVAR_ENV=production \
 # Where the app is, how it serves, what renders it, and what is PHP's alone,
 # which the entrypoint checks the renderers' user cannot read.
 ENV TINVAR_CONTAINER_CWD=/srv/app \
-    TINVAR_CONTAINER_TINVAR=/srv/app/bin/tinvar \
-    TINVAR_CONTAINER_SERVE="/srv/app/bin/serve --prebuilt" \
+    TINVAR_CONTAINER_TINVAR=/srv/app/tinvar \
+    TINVAR_CONTAINER_SERVE="php /srv/app/tinvar serve --prebuilt" \
     TINVAR_CONTAINER_RENDERER=/srv/app/node_modules/@tinvar/renderer/bin/renderer.js \
     TINVAR_CONTAINER_RENDER_ENTRY=/srv/app/dist/rsc/index.js \
     TINVAR_CONTAINER_PRIVATE=/var/lib/app/data:/srv/app/vendor:/srv/app/app:/srv/app/Caddyfile \

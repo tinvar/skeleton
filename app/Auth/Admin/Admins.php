@@ -12,9 +12,9 @@ use Tinvar\Auth\Authenticatable;
  * Who may open the admin panel: the accounts whose addresses APP_ADMINS
  * lists, comma-separated, as `ada@example.com,grace@example.com`.
  *
- * With APP_ADMINS unset, `bin/dev` lets every signed-in account in, so the
+ * With APP_ADMINS unset, `php tinvar serve --dev` lets every signed-in account in, so the
  * panel works the moment the app does; dev mode answers on loopback alone
- * and is refused beside any sign of production. Anywhere else -- bin/serve,
+ * and is refused beside any sign of production. Anywhere else -- `tinvar serve`,
  * the container, the tests -- an unset list lets nobody in, and the panel
  * answers 403 until it names someone.
  *
@@ -32,7 +32,7 @@ final readonly class Admins
 
     /**
      * @param list<string> $emails the admins' addresses, spelled any way
-     * @param bool $openInDev whether an empty list lets every signed-in account in: `bin/dev` alone
+     * @param bool $openInDev whether an empty list lets every signed-in account in: `php tinvar serve --dev` alone
      */
     public function __construct(array $emails, private bool $openInDev = false)
     {
@@ -62,7 +62,7 @@ final readonly class Admins
             && \in_array(Emails::normalize($user->accountEmail()), $this->emails, true);
     }
 
-    /** Whether the list names nobody: the panel is then shut, except under `bin/dev`. */
+    /** Whether the list names nobody: the panel is then shut, except under `php tinvar serve --dev`. */
     public function unnamed(): bool
     {
         return $this->emails === [];

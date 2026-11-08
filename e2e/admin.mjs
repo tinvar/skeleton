@@ -1,5 +1,5 @@
 // The skeleton's admin panel in a real browser (ADR 0152), against an app
-// bin/serve is serving with APP_ADMINS naming the address given here:
+// `tinvar serve` is serving with APP_ADMINS naming the address given here:
 //
 //   node e2e/admin.mjs http://localhost:PORT path/to/database/app.sqlite-mail.log admin@example.com
 //

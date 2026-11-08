@@ -9,7 +9,7 @@ use Tinvar\Orm\Migrations\Migrator;
 
 /**
  * The app's migrations, in database/migrations/ beside app/, one file each:
- * `bin/tinvar migrate` runs them, bin/serve runs them on every start, and so
+ * `php tinvar migrate` runs them, `tinvar serve` runs them on every start, and so
  * does every test that builds a database. Each returns a class of its own
  * that nothing names, so they stay out of the app's namespace; this class,
  * which says where they are, is the database's under app/Database.
