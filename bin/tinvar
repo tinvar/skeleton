@@ -10,8 +10,10 @@ declare(strict_types=1);
  *
  * Tinvar\Console\AppConsole owns the commands every app has -- serve, dev,
  * the builds, the migrations, the generators, codegen and the check --
- * handed this app's Kernel, the classes it discovers and its directories. Add your own
- * the same way: `->command('name', 'usage', 'what it does', fn (array $arguments): int => ...)`.
+ * handed this app's Kernel, the classes it discovers and its directories.
+ * The app's own #[Command] classes are listed and run by the names they
+ * declare. Or add one here: `->command('name', 'usage', 'what it does',
+ * fn (array $arguments): int => ...)`.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -101,7 +103,21 @@ foreach ([
     'queue:retry' => ['queue:retry <id>... | all', 'Put failed jobs back on their queues'],
     'queue:hand-back' => ['queue:hand-back <file>', 'Put back the job a worker killed at a stop held (serve runs it)'],
 ] as $name => [$usage, $about]) {
-    $console->command($name, $usage, $about, static fn (array $arguments): int => queue($name, $arguments));
+    $console->command($name, $usage, $about, static fn (array $arguments): int => kernelCommand($name, $arguments));
+}
+// The app's own #[Command] classes, by the name each declares, run through
+// the Kernel's console as the queue's are. Where discovery refuses the
+// app's classes, none: the command run says why.
+try {
+    $commands = Kernel::classes()->commands;
+} catch (Tinvar\Discovery\DiscoveryFailed) {
+    $commands = [];
+}
+foreach ($commands as $class) {
+    foreach (new ReflectionClass($class)->getAttributes(Tinvar\Attributes\Command::class) as $attribute) {
+        $command = $attribute->newInstance();
+        $console->command($command->name, $command->name, $command->description, static fn (array $arguments): int => kernelCommand($command->name, $arguments));
+    }
 }
 
 exit($console
@@ -122,13 +138,14 @@ exit($console
     ->run($argv));
 
 /**
- * One of the queue's commands, through the app's Kernel. queue:work draws
- * email with the renderers: the pool `serve` and `dev` name in
- * TINVAR_SOCKET, or -- run on its own -- one started here from the build.
+ * One of the queue's commands, or one of the app's own, through the app's
+ * Kernel. queue:work draws email with the renderers: the pool `serve` and
+ * `dev` name in TINVAR_SOCKET, or -- run on its own -- one started here
+ * from the build.
  *
  * @param list<string> $arguments
  */
-function queue(string $command, array $arguments): int
+function kernelCommand(string $command, array $arguments): int
 {
     $renderer = null;
     $socket = getenv('TINVAR_SOCKET');
