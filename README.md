@@ -32,7 +32,10 @@ fetched.
 
 `bin/dev` is dev mode: Vite's dev server renders the app from source, an
 edit shows in the open page, codegen runs again as the PHP changes, and the
-dev toolbar sits over each page. Loopback only, never in production. Started
+dev toolbar sits over each page. Loopback only, never in production;
+`bin/dev --tunnel` shares it through a Cloudflare quick tunnel
+(`brew install cloudflared` first), behind a share token in the address it
+prints. Started
 with `TINVAR_ENV=local`, it also draws the pages and components in
 `resources/workbench.tsx` on their own, from the samples there, at
 `/_vite/__workbench` and `/_vite/__playground`. `bin/tinvar render --dump
