@@ -27,6 +27,8 @@ use Tinvar\Accounts\Accounts;
 use Tinvar\Accounts\Passkeys\PasskeyStore;
 use Tinvar\Accounts\Passkeys\VerifiedRegistration;
 use Tinvar\Accounts\SendAccountMail;
+use Tinvar\Accounts\SessionFactors;
+use Tinvar\Accounts\SignInFactor;
 use Tinvar\Accounts\TwoFactor\Base32;
 use Tinvar\Accounts\TwoFactor\Totp;
 use Tinvar\Console\Output;
@@ -409,6 +411,16 @@ it('asks a signed-in session to confirm it is its owner before removing a passke
         ->and($refused->body())->toContain(json_encode(Accounts::CONFIRM_FIRST, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE))
         ->and($this->kernel->orm->connection()->select('SELECT COUNT(*) AS n FROM passkeys')[0]['n'])->toBe(1);
 
+    // The password proves one factor: an account with a passkey changes its
+    // second factors from a session of two (ADR 0184).
+    $browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD]);
+    $one = $browser->action('account.removePasskey', ['id' => $passkey]);
+    expect($one->status)->toBe(422)
+        ->and($one->body())->toContain(json_encode(Accounts::CONFIRM_SECOND_FACTOR, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+    // Signed in with the passkey, as its ceremony would: the browser test's.
+    $user = new Users($this->kernel->orm)->find($id) ?? throw new \LogicException('No account.');
+    $browser->cookies = [...$browser->cookies, ...$this->kernel->accounts->signedIn($user, new Request('GET', '/', ['host' => 'app.test']), SessionFactors::of(SignInFactor::Passkey))];
     $browser->action('account.confirmWithPassword', ['currentPassword' => PASSWORD]);
     expect($browser->action('account.removePasskey', ['id' => $passkey])->status)->toBe(200)
         ->and($this->kernel->orm->connection()->select('SELECT COUNT(*) AS n FROM passkeys')[0]['n'])->toBe(0);
@@ -468,6 +480,8 @@ it('turns two-factor off with the password, signing out every other device, and 
     $phone->action('account.completeSecondFactor', ['code' => $codes[0]]);
     expect(signedInAs($phone))->toBe('ada@example.com');
 
+    // The code proves a second factor on this session, as turning it off asks (ADR 0184).
+    expect($browser->action('account.confirmWithCode', ['code' => Totp::at($secret, time() + Totp::PERIOD)])->status)->toBe(200);
     expect($browser->action('account.disableTwoFactor', ['currentPassword' => 'a guess'])->status)->toBe(422)
         ->and(signedInAs($phone))->toBe('ada@example.com');
     expect($browser->action('account.disableTwoFactor', ['currentPassword' => PASSWORD])->status)->toBe(200)

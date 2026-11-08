@@ -23,7 +23,10 @@ import { describe, messageOf } from './AccountForms';
  * an action is refused for it.
  *
  * A Meridian dialog with each way the account can prove it: one of its
- * passkeys, a code from its authenticator app, or its password.
+ * passkeys, a code from its authenticator app, or its password. A passkey
+ * or a code also proves a second factor on this session (ADR 0184), which a
+ * change to the second factors of an account that has one asks for: a
+ * refusal for want of it says so above the choices.
  */
 
 type Confirm = {
@@ -98,6 +101,11 @@ export function ConfirmProvider({
       if (!errors || !('confirm' in errors)) return false;
       until.current = null;
       void ask();
+      // What the server asked for: a session that has confirmed with its
+      // password is still asked for a passkey or a code before it changes
+      // the second factors of an account that has one (ADR 0184).
+      const said = errors.confirm;
+      setFailure((Array.isArray(said) ? said[0] : said) ?? null);
       return true;
     },
     [ask],
