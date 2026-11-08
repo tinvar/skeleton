@@ -7,6 +7,7 @@ import AccountPasskeyAdded from '../emails/AccountPasskeyAdded';
 import AccountPasskeyRemoved from '../emails/AccountPasskeyRemoved';
 import AccountPasswordChanged from '../emails/AccountPasswordChanged';
 import AccountPasswordReset from '../emails/AccountPasswordReset';
+import AccountWelcome from '../emails/AccountWelcome';
 import AccountSignUp from '../emails/AccountSignUp';
 import AccountTwoFactorDisabled from '../emails/AccountTwoFactorDisabled';
 
@@ -24,6 +25,7 @@ export const renderMail = createMailRenderer({
   'account-sign-up': AccountSignUp,
   'account-already-registered': AccountAlreadyRegistered,
   'account-password-reset': AccountPasswordReset,
+  'account-welcome': AccountWelcome,
   'account-email-change': AccountEmailChange,
   'account-email-changed': AccountEmailChanged,
   'account-password-changed': AccountPasswordChanged,

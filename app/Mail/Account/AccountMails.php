@@ -8,6 +8,7 @@ use App\Http\Data\Account\AccountMailData;
 use App\Kernel;
 use Tinvar\Accounts\AccountMails as AccountMailsContract;
 use Tinvar\Accounts\AccountUser;
+use Tinvar\Accounts\WelcomeMails;
 use Tinvar\Mail\Address;
 use Tinvar\Mail\Mailable;
 
@@ -17,11 +18,12 @@ use Tinvar\Mail\Mailable;
  * kit decides when each goes and builds every link; change the words here
  * and in the templates.
  */
-final readonly class AccountMails implements AccountMailsContract
+final readonly class AccountMails implements AccountMailsContract, WelcomeMails
 {
     public const string SIGN_UP = 'account-sign-up';
     public const string ALREADY_REGISTERED = 'account-already-registered';
     public const string PASSWORD_RESET = 'account-password-reset';
+    public const string WELCOME = 'account-welcome';
     public const string EMAIL_CHANGE = 'account-email-change';
     public const string EMAIL_CHANGED = 'account-email-changed';
     public const string PASSWORD_CHANGED = 'account-password-changed';
@@ -57,6 +59,22 @@ final readonly class AccountMails implements AccountMailsContract
             secondaryUrl: $resetUrl,
             email: $user->accountEmail(),
             reason: 'Someone tried to sign up to ' . Kernel::NAME . " again as {$user->accountEmail()}.",
+        );
+    }
+
+    /** An account the app made for someone -- an operator, an import -- with its link to choose a password (ADR 0189). */
+    public function welcome(AccountUser $user, string $url, int $days): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'Your ' . Kernel::NAME . ' account is ready',
+            self::WELCOME,
+            $url,
+            name: $user->accountName(),
+            url: $url,
+            minutes: $days * 1440,
+            email: $user->accountEmail(),
+            reason: 'An account was made on ' . Kernel::NAME . " for {$user->accountEmail()}.",
         );
     }
 

@@ -296,6 +296,20 @@ it('resets a forgotten password by a link, ending every other session', function
     expect($browser->action('account.resetPassword', ['token' => tokenOf($path), 'password' => 'yet another passphrase'])->status)->toBe(422);
 });
 
+it('welcomes an account made for someone with a link that sets its first password', function () {
+    $made = new Users($this->kernel->orm)->create('bea@example.com', 'Bea', '');
+    $this->kernel->accounts->accounts->sendWelcome($made);
+    work($this->kernel);
+    expect($this->mail->sent(AccountMails::WELCOME))->toHaveCount(1);
+
+    $path = link($this->mail, AccountMails::WELCOME, 'bea@example.com');
+    $browser = new Browser($this->kernel);
+    $browser->get($path);
+    expect($browser->page('email'))->toBe('bea@example.com')
+        ->and($browser->action('account.resetPassword', ['token' => tokenOf($path), 'password' => 'a brand new passphrase'])->header('location'))->toBe('/account')
+        ->and(signedInAs($browser))->toBe('bea@example.com');
+});
+
 it('changes a known password, asking for the current one, and keeps this browser signed in', function () {
     $browser = signUp($this->kernel, $this->mail, 'ada@example.com');
     $other = new Browser($this->kernel, '192.0.2.50');
