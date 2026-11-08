@@ -32,3 +32,9 @@ it('refuses a switch that is not 1 or 0, by name', function () {
     expect(fn () => Configs::load(AppConfig::class, ['TINVAR_PROBE_TRUST_LOOPBACK' => 'true']))
         ->toThrow(ConfigException::class, 'TINVAR_PROBE_TRUST_LOOPBACK must be 1 or 0');
 });
+
+it('reads TINVAR_THROTTLE, a host\'s own endpoint budget included, and refuses what it cannot read', function () {
+    expect(Kernel::limitsFrom('actions=600, endpoints@api.{root}=1200'))->toBe(['actions' => 600, 'endpoints@api.{root}' => 1200])
+        ->and(fn () => Kernel::limitsFrom('endpoints@=5'))->toThrow(\InvalidArgumentException::class, "cannot read 'endpoints@=5'")
+        ->and(fn () => Kernel::limitsFrom('actions=lots'))->toThrow(\InvalidArgumentException::class, "cannot read 'actions=lots'");
+});
