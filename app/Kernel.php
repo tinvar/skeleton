@@ -1375,8 +1375,7 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * `actions=600` as a limits map, a host's own endpoint budget among them
-     * as `endpoints@api.{root}=1200` (ADR 0187). Malformed entries are refused rather
+     * `actions=600` as a limits map. Malformed entries are refused rather
      * than skipped: a typo that silently left a limit where it was would
      * read as configured.
      *
@@ -1386,7 +1385,7 @@ final class Kernel implements TestableApplication, Terminable
     {
         $limits = [];
         foreach (array_filter(array_map(trim(...), explode(',', $spec))) as $entry) {
-            if (preg_match('/^([a-z][a-z.-]*(?:@[a-z0-9{}.-]+)?)=(0|[1-9][0-9]{0,6})\z/', $entry, $m) !== 1) {
+            if (preg_match('/^([a-z][a-z.-]*)=(0|[1-9][0-9]{0,6})\z/', $entry, $m) !== 1) {
                 throw new \InvalidArgumentException("TINVAR_THROTTLE: cannot read '{$entry}'; write bucket=limit, as actions=600.");
             }
             $limits[$m[1]] = (int) $m[2];
