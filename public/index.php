@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 
 use App\Kernel;
+use Tinvar\Http\BodyTooLarge;
 use Tinvar\Http\BuiltAssets;
 use Tinvar\Http\NotFoundException;
 use Tinvar\Http\Response;
@@ -48,13 +49,20 @@ try {
 
 try {
     $request = Sapi::request($_SERVER, $_GET, $_POST, $_COOKIE, $_FILES);
+    // The raw body, never more than Sapi::MAX_BODY_BYTES of it: one that
+    // says it is larger is refused before a byte is read.
+    $body = Sapi::body($_SERVER);
 } catch (NotFoundException) {
     Sapi::send(Response::make(404, 'Not found', ['content-type' => 'text/plain']));
 
     return;
+} catch (BodyTooLarge) {
+    Sapi::send(Response::make(413, 'Request body is too large.', ['content-type' => 'text/plain', 'connection' => 'close']));
+
+    return;
 }
 
-Sapi::send($kernel->handle($request, (string) file_get_contents('php://input')));
+Sapi::send($kernel->handle($request, $body));
 
 // Metrics to their store once the response is over.
 if (\function_exists('frankenphp_finish_request')) {

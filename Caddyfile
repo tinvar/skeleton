@@ -22,8 +22,18 @@
 	# longer write to clients (the `intercept` block below), so this bounds
 	# how long a slow client holds Caddy's copy of a response, and the writes
 	# still a worker's: a body over a megabyte, or a stream of no known length.
+	#
+	# And a request is read within deadlines: its headers in 10 s, the whole
+	# of it, body and all, in 60 s. FrankenPHP hands a request to a worker
+	# before its body has arrived, so a client that sends one slowly holds
+	# that worker for as long as it is let; as many as there are workers,
+	# and no one else is served (ADR 0207 in the framework's repository).
+	# A file larger than a slow line sends in a minute goes in resumable
+	# chunks. `php tinvar check` refuses a Caddyfile without all three.
 	servers {
 		timeouts {
+			read_header 10s
+			read_body 60s
 			write_idle 8s
 		}
 
@@ -52,6 +62,15 @@
 # alone would listen on every interface and answer only requests naming it.
 http://:{$TINVAR_PORT:8080} {
 	bind {$TINVAR_HOST:127.0.0.1}
+
+	# No body larger than the largest upload the framework takes
+	# (Tinvar\Uploads\Uploads::DEFAULT_MAX_BYTES) and its form around it.
+	# PHP refuses a raw body over 8 MiB itself (Sapi::MAX_BODY_BYTES), by
+	# its Content-Length before reading it (ADR 0207). Raise both together
+	# if the app takes larger files through PHP.
+	request_body {
+		max_size 11MiB
+	}
 
 	# Built assets: hashed names, so a file at a name never changes and can be
 	# cached for a year. Only a name a build writes under /assets/, as PHP
