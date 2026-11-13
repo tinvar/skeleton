@@ -30,6 +30,7 @@ final readonly class AccountMails implements AccountMailsContract, WelcomeMails
     public const string PASSKEY_ADDED = 'account-passkey-added';
     public const string PASSKEY_REMOVED = 'account-passkey-removed';
     public const string TWO_FACTOR_DISABLED = 'account-two-factor-disabled';
+    public const string SECOND_FACTOR_FAILURES = 'account-second-factor-failures';
     public const string API_TOKEN_CREATED = 'account-api-token-created';
 
     public function signUp(string $email, string $name, string $url, int $minutes): Mailable
@@ -179,6 +180,21 @@ final readonly class AccountMails implements AccountMailsContract, WelcomeMails
             url: $resetUrl,
             email: $user->accountEmail(),
             reason: 'Two-factor sign-in was turned off on the ' . Kernel::NAME . " account {$user->accountEmail()}.",
+        );
+    }
+
+    /** A sign-in that had the password ended for too many wrong codes (ADR 0203). */
+    public function secondFactorFailures(AccountUser $user, string $resetUrl): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'Someone with your ' . Kernel::NAME . ' password typed wrong codes',
+            self::SECOND_FACTOR_FAILURES,
+            $resetUrl,
+            name: $user->accountName(),
+            url: $resetUrl,
+            email: $user->accountEmail(),
+            reason: 'A sign-in to the ' . Kernel::NAME . " account {$user->accountEmail()} typed too many wrong two-factor codes.",
         );
     }
 

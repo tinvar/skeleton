@@ -7,6 +7,7 @@ import AccountPasskeyAdded from '../emails/AccountPasskeyAdded';
 import AccountPasskeyRemoved from '../emails/AccountPasskeyRemoved';
 import AccountPasswordChanged from '../emails/AccountPasswordChanged';
 import AccountPasswordReset from '../emails/AccountPasswordReset';
+import AccountSecondFactorFailures from '../emails/AccountSecondFactorFailures';
 import AccountWelcome from '../emails/AccountWelcome';
 import AccountSignUp from '../emails/AccountSignUp';
 import AccountTwoFactorDisabled from '../emails/AccountTwoFactorDisabled';
@@ -32,5 +33,6 @@ export const renderMail = createMailRenderer({
   'account-passkey-added': AccountPasskeyAdded,
   'account-passkey-removed': AccountPasskeyRemoved,
   'account-two-factor-disabled': AccountTwoFactorDisabled,
+  'account-second-factor-failures': AccountSecondFactorFailures,
   'account-api-token-created': AccountApiTokenCreated,
 });
