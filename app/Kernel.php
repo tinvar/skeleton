@@ -498,7 +498,7 @@ final class Kernel implements TestableApplication, Terminable
         Configs::loadAll(self::classes()->configs);
         $dev ??= FrameworkConfig::load()->devMode();
         $key ??= self::appKey();
-        $socketPath ??= self::config()->socket;
+        $socketPath ??= self::config()->socket ?? self::rendererSocket();
         // First, so a renderer user that is no one, root or this process's
         // own stops the process here rather than leaving renders to go anywhere.
         $rendererUsers = RendererUser::socketOwners();
@@ -967,6 +967,18 @@ final class Kernel implements TestableApplication, Terminable
      * is (StateFile): two apps made from this skeleton never sign with one
      * key.
      */
+    /**
+     * The renderer's socket where TINVAR_SOCKET names none: in this user's
+     * state directory, beside the app key, never in /tmp (ADR 0212). `serve`
+     * and `serve --dev` name their own pool; this is a socket a renderer
+     * started by hand listens on.
+     */
+    public static function rendererSocket(): string
+    {
+        return self::stateFile('renderer.sock')
+            ?? throw new \RuntimeException('No place for the renderer\'s socket: set TINVAR_SOCKET to the pool directory or socket the renderers listen on.');
+    }
+
     private static function stateFile(string $extension): ?string
     {
         return StateFile::of(\dirname(__DIR__), $extension);

@@ -67,9 +67,11 @@ final readonly class AppConfig
         // Where mail goes while no TINVAR_MAIL_PROVIDER is named, in
         // development: a file beside the database unless set.
         public ?string $mailLog = null,
-        // The renderers' pool directory, or one renderer's socket.
+        // The renderers' pool directory, or one renderer's socket. Unset, a
+        // socket in this user's state directory -- never /tmp, where any
+        // local user could put a renderer of their own (ADR 0212).
         #[Env('TINVAR_SOCKET')]
-        public string $socket = '/tmp/tinvar.sock',
+        public ?string $socket = null,
         // Throttle limits over the defaults, as `actions=600`.
         #[Env('TINVAR_THROTTLE')]
         public ?string $throttle = null,

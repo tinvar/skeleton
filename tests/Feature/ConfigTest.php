@@ -25,7 +25,9 @@ it('reads its settings typed, with the defaults where unset', function () {
     expect($config->database)->toBe('/srv/app.sqlite')
         ->and($config->probeTrustLoopback)->toBeTrue()
         ->and($config->build)->toBe('dev')
-        ->and($config->socket)->toBe('/tmp/tinvar.sock');
+        // No pool in /tmp, where any local user could put one (ADR 0212):
+        // unset, the Kernel reaches for one in this user's state directory.
+        ->and($config->socket)->toBeNull();
 });
 
 it('refuses a switch that is not 1 or 0, by name', function () {
