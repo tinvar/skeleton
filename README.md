@@ -124,7 +124,8 @@ panel (ADR 0152), drawn by the panel's three views in
 `resources/pages/admin/resources/`. `Kernel::panels()` defines the panel,
 behind `App\Auth\Admin\RequireAdmin`: a visitor is sent to sign in, and
 only the accounts `APP_ADMINS` names, comma-separated, are let in. With it
-unset, `php tinvar serve --dev` lets every signed-in account in and
+unset, `php tinvar serve --dev` lets every signed-in account in from this
+machine alone -- never through a tunnel, however it was started -- and
 everywhere else nobody may. `php tinvar make:resource Orders/Order
 --fields=... --panel=admin` adds a model's screens beside its own pages.
 

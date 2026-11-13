@@ -204,6 +204,12 @@ final class Kernel implements TestableApplication, Terminable
     private readonly FragmentManifest $manifest;
 
     /**
+     * The request being served, which Admins asks whether it came from this
+     * machine; none between requests, and none for what no request asks.
+     */
+    private ?Request $serving = null;
+
+    /**
      * @param array<string, int> $limits requests per window by throttle bucket, over the
      *        framework's defaults; 0 turns a bucket off
      * @param list<int> $rendererUsers the renderers' own user, where they run as one
@@ -272,8 +278,13 @@ final class Kernel implements TestableApplication, Terminable
             ->instance(Throttle::class, $throttle)
             ->instance(AuthContext::class, $auth)
             // Who may open the admin panel: APP_ADMINS, or under `php tinvar serve --dev`
-            // with it unset, every signed-in account (App\Auth\Admin\Admins).
-            ->instance(Admins::class, Admins::forServing(self::config()->admins, $dev));
+            // with it unset, every signed-in account -- from this machine,
+            // never through a tunnel (App\Auth\Admin\Admins, ADR 0219).
+            ->instance(Admins::class, Admins::forServing(
+                self::config()->admins,
+                $dev,
+                reachedLocally: fn (): bool => $this->serving !== null && Admins::reachedLocally($this->serving),
+            ));
 
         // Every class the app registers, read once (ADR 0146).
         $classes = self::classes();
@@ -613,6 +624,7 @@ final class Kernel implements TestableApplication, Terminable
     public function handleWith(Request $request, \Closure $respond, string $rawBody = ''): Response
     {
         $this->lastFailure = null;
+        $this->serving = $request;
 
         // A probe every few seconds is not a visitor: no session for it.
         if ($this->http->opensNoSession($request)) {
@@ -665,6 +677,7 @@ final class Kernel implements TestableApplication, Terminable
     {
         $this->http->scope->reset();
         $this->lastFailure = null;
+        $this->serving = null;
     }
 
     /** Metrics to their store once the response has gone. */
