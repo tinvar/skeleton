@@ -459,7 +459,11 @@ it('turns two-factor on with a code, then asks for one at sign-in, each good onc
     $confirmed = $browser->action('account.confirmTwoFactor', ['code' => $code]);
     expect($confirmed->status)->toBe(200);
     $codes = json_decode($confirmed->body(), true)['value']['recoveryCodes'] ?? [];
-    expect($codes)->toHaveCount(10);
+    expect($codes)->toHaveCount(10)
+        ->and(signedInAs($browser))->toBe('ada@example.com');
+    // The owner is told, as they are when it is turned off (ADR 0215).
+    work($this->kernel);
+    $this->mail->assertSentTo('ada@example.com', AccountMails::TWO_FACTOR_ENABLED);
 
     $phone = new Browser($this->kernel, '192.0.2.80');
     expect($phone->action('account.signIn', ['email' => 'ada@example.com', 'password' => PASSWORD])->header('location'))->toStartWith('/sign-in/two-factor')

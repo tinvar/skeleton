@@ -11,6 +11,7 @@ import AccountSecondFactorFailures from '../emails/AccountSecondFactorFailures';
 import AccountWelcome from '../emails/AccountWelcome';
 import AccountSignUp from '../emails/AccountSignUp';
 import AccountTwoFactorDisabled from '../emails/AccountTwoFactorDisabled';
+import AccountTwoFactorEnabled from '../emails/AccountTwoFactorEnabled';
 
 /**
  * The email templates PHP may name, by the name its Mailable gives
@@ -32,6 +33,7 @@ export const renderMail = createMailRenderer({
   'account-password-changed': AccountPasswordChanged,
   'account-passkey-added': AccountPasskeyAdded,
   'account-passkey-removed': AccountPasskeyRemoved,
+  'account-two-factor-enabled': AccountTwoFactorEnabled,
   'account-two-factor-disabled': AccountTwoFactorDisabled,
   'account-second-factor-failures': AccountSecondFactorFailures,
   'account-api-token-created': AccountApiTokenCreated,

@@ -29,6 +29,7 @@ final readonly class AccountMails implements AccountMailsContract, WelcomeMails
     public const string PASSWORD_CHANGED = 'account-password-changed';
     public const string PASSKEY_ADDED = 'account-passkey-added';
     public const string PASSKEY_REMOVED = 'account-passkey-removed';
+    public const string TWO_FACTOR_ENABLED = 'account-two-factor-enabled';
     public const string TWO_FACTOR_DISABLED = 'account-two-factor-disabled';
     public const string SECOND_FACTOR_FAILURES = 'account-second-factor-failures';
     public const string API_TOKEN_CREATED = 'account-api-token-created';
@@ -166,6 +167,21 @@ final readonly class AccountMails implements AccountMailsContract, WelcomeMails
             email: $user->accountEmail(),
             reason: 'A passkey was removed from the ' . Kernel::NAME . " account {$user->accountEmail()}.",
             passkey: self::plain($passkeyName),
+        );
+    }
+
+    /** Two-factor sign-in turned on, every other device signed out (ADR 0215). */
+    public function twoFactorEnabled(AccountUser $user, string $resetUrl): Mailable
+    {
+        return $this->email(
+            self::to($user),
+            'Two-factor sign-in was turned on for your ' . Kernel::NAME . ' account',
+            self::TWO_FACTOR_ENABLED,
+            $resetUrl,
+            name: $user->accountName(),
+            url: $resetUrl,
+            email: $user->accountEmail(),
+            reason: 'Two-factor sign-in was turned on for the ' . Kernel::NAME . " account {$user->accountEmail()}.",
         );
     }
 
