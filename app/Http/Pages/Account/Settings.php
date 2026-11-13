@@ -36,7 +36,7 @@ final class Settings
     public function __invoke(Request $request): SettingsPageData
     {
         $user = $this->user->get();
-        $setup = $this->accounts->twoFactorEnabled($user) ? null : $this->accounts->pendingTwoFactor($user);
+        $setup = $this->accounts->twoFactorEnabled($user) ? null : $this->accounts->pendingTwoFactor($request, $user);
         $done = $request->query['done'] ?? null;
 
         return new SettingsPageData(
