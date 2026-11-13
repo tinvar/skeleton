@@ -72,6 +72,16 @@ http://:{$TINVAR_PORT:8080} {
 		max_size 11MiB
 	}
 
+	# On every response that sets none of its own -- `/_file` sends
+	# `no-referrer`, and that stands: no type sniffed from a body, no
+	# path or query sent to another origin, and HTTPS remembered for a
+	# year once a browser has reached the app over it (a browser ignores
+	# HSTS sent over plain HTTP, as on loopback). One directive each: `?`
+	# in one block of several skips them all once any one is set.
+	header ?X-Content-Type-Options nosniff
+	header ?Referrer-Policy strict-origin-when-cross-origin
+	header ?Strict-Transport-Security "max-age=31536000"
+
 	# Built assets: hashed names, so a file at a name never changes and can be
 	# cached for a year. Only a name a build writes under /assets/, as PHP
 	# serves them -- nothing else under dist/client is meant to be served, and
