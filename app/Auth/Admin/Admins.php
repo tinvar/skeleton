@@ -7,6 +7,7 @@ namespace App\Auth\Admin;
 use Tinvar\Accounts\AccountUser;
 use Tinvar\Accounts\Emails;
 use Tinvar\Auth\Authenticatable;
+use Tinvar\Server\PublicHost;
 
 /**
  * Who may open the admin panel: the accounts whose addresses APP_ADMINS
@@ -14,7 +15,10 @@ use Tinvar\Auth\Authenticatable;
  *
  * With APP_ADMINS unset, `php tinvar serve --dev` lets every signed-in account in, so the
  * panel works the moment the app does; dev mode answers on loopback alone
- * and is refused beside any sign of production. Anywhere else -- `tinvar serve`,
+ * and runs only where TINVAR_ENV says this is a developer's machine. Not
+ * once a tunnel shares it (--tunnel, --public-host): then the panel is
+ * reached from beyond this machine, and an unset list lets nobody in (ADR
+ * 0219). Anywhere else -- `tinvar serve`,
  * the container, the tests -- an unset list lets nobody in, and the panel
  * answers 403 until it names someone.
  *
@@ -46,6 +50,20 @@ final readonly class Admins
     public static function fromList(?string $list, bool $openInDev = false): self
     {
         return new self(explode(',', (string) $list), $openInDev);
+    }
+
+    /**
+     * The admins this process serves: APP_ADMINS, open to every signed-in
+     * account in dev while it is unset -- unless dev is shared through a
+     * tunnel, which `serve --dev` says in TINVAR_DEV_PUBLIC_HOST.
+     *
+     * @param array<string, string>|null $env the environment; the process's own by default
+     */
+    public static function forServing(?string $list, bool $dev, ?array $env = null): self
+    {
+        $shared = trim((string) (($env ?? array_filter(getenv(), \is_string(...)))[PublicHost::HOST_ENV] ?? ''));
+
+        return self::fromList($list, openInDev: $dev && $shared === '');
     }
 
     /** Whether $user is one of the app's admins. A guest never is. */

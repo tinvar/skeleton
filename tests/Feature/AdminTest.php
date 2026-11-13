@@ -111,3 +111,15 @@ it('lets every signed-in account in under `tinvar serve --dev` while APP_ADMINS 
         ->and(new Admins([])->allows($user))->toBeFalse()
         ->and(Admins::fromList('ada@example.com', openInDev: true)->allows($user))->toBeFalse();
 });
+
+// ADR 0219: dev mode shared through a tunnel (--tunnel, --public-host) is
+// reached from beyond this machine, so an unset APP_ADMINS lets nobody in.
+it('shuts the panel under `tinvar serve --dev` once a tunnel shares it, while APP_ADMINS is unset', function () {
+    $user = new User();
+    $user->email = 'anyone@example.com';
+
+    expect(Admins::forServing(null, dev: true, env: [])->allows($user))->toBeTrue()
+        ->and(Admins::forServing(null, dev: true, env: ['TINVAR_DEV_PUBLIC_HOST' => 'grade-habits.trycloudflare.com'])->allows($user))->toBeFalse()
+        ->and(Admins::forServing(null, dev: false, env: [])->allows($user))->toBeFalse()
+        ->and(Admins::forServing('anyone@example.com', dev: true, env: ['TINVAR_DEV_PUBLIC_HOST' => 'dev.example.com'])->allows($user))->toBeTrue();
+});

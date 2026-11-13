@@ -273,7 +273,7 @@ final class Kernel implements TestableApplication, Terminable
             ->instance(AuthContext::class, $auth)
             // Who may open the admin panel: APP_ADMINS, or under `php tinvar serve --dev`
             // with it unset, every signed-in account (App\Auth\Admin\Admins).
-            ->instance(Admins::class, Admins::fromList(self::config()->admins, openInDev: $dev));
+            ->instance(Admins::class, Admins::forServing(self::config()->admins, $dev));
 
         // Every class the app registers, read once (ADR 0146).
         $classes = self::classes();
