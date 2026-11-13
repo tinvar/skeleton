@@ -17,7 +17,8 @@ use Tinvar\Auth\Authenticatable;
  *
  * Reading the notes, and leaving one, are for anyone, signed in or not --
  * $user is the signed-in App\Database\Models\Account\User, or null -- and
- * the actions' throttle and AddNoteRequest bound them. To keep notes to
+ * the actions' throttle, NoteActions' budget for visitors and
+ * AddNoteRequest bound them. To keep notes to
  * people with accounts, say so here, and take #[PublicAccess] off the
  * query and the action.
  *

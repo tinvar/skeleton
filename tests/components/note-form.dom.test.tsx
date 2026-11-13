@@ -52,7 +52,9 @@ describe('NoteForm', () => {
     await addNote('One too many.');
 
     expect(
-      await screen.findByText('Too many notes from this address. Wait a minute, then add it again.'),
+      await screen.findByText(
+        'Too many notes from this address. Wait a while, or sign in, then add it again.',
+      ),
     ).toBeTruthy();
   });
 });

@@ -79,7 +79,9 @@ tinvar                    the console: php tinvar serve, serve --dev, migrate, m
 The home page lists notes with a query (`RecentNotes`) and adds one with an
 action (`NoteActions::add`, posted by `<NoteForm>`). Both say
 `#[PublicAccess]` and `NotePolicy` lets anyone in, signed in or not: decide
-there who may.
+there who may. A visitor leaves at most ten notes an hour from one address
+(`NoteActions::VISITOR_NOTES_PER_HOUR`); someone signed in is held to the
+actions' throttle alone.
 
 ## Accounts
 

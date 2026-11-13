@@ -25,7 +25,7 @@ export function NoteForm() {
       onHttpException={(failure) =>
         setFailed(
           failure.status === 429
-            ? 'Too many notes from this address. Wait a minute, then add it again.'
+            ? 'Too many notes from this address. Wait a while, or sign in, then add it again.'
             : `The note was not saved (${failure.status}). Add it again; quote ${failure.reference ?? 'the time'} if it keeps failing.`,
         )
       }

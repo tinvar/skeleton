@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Database\Models\Account\User;
 use App\Http\Actions\NoteActions;
 use App\Http\Data\NotesData;
 use App\Database\Migrations;
@@ -25,6 +26,7 @@ use Tinvar\Testing\AssertablePage;
 use Tinvar\Testing\Testing;
 
 use function Tinvar\Testing\action;
+use function Tinvar\Testing\actingAs;
 use function Tinvar\Testing\get;
 use function Tinvar\Testing\query;
 
@@ -32,6 +34,7 @@ beforeEach(function () {
     $kernel = Kernel::fromEnvironment(database: ':memory:', telemetry: new Telemetry(new Logger(new MemorySink())));
     Migrations::migrate($kernel->orm->connection());
     Testing::use($kernel);
+    $this->kernel = $kernel;
 });
 
 afterEach(function () {
@@ -50,6 +53,27 @@ it('adds a note, and lists it newest first', function () {
 
     query(RecentNotes::class, limit: 10)->assertData(
         fn (NotesData $data): bool => $data->total === 2 && $data->notes[0]->body === 'The second note.' && $data->notes[1]->body === 'The first note.',
+    );
+});
+
+// Leaving a note is public by choice, so a visitor's are budgeted: ten an
+// hour from one address, past the actions' throttle every caller spends.
+// An account's are not: it is throttled by the account (ADR 0223).
+it('holds a visitor to ten notes an hour from one address, and not someone signed in', function () {
+    for ($i = 1; $i <= 10; $i++) {
+        action([NoteActions::class, 'add'], body: "Note {$i}.")->assertRevalidated('home');
+    }
+    action([NoteActions::class, 'add'], body: 'One too many.')->assertStatus(429);
+
+    $user = new User();
+    $user->email = 'ada@example.com';
+    $user->name = 'Ada';
+    $user->passwordHash = password_hash('a long enough password', PASSWORD_DEFAULT);
+    $this->kernel->orm->save($user);
+    actingAs($user)->action([NoteActions::class, 'add'], body: 'Signed in.')->assertRevalidated('home');
+
+    query(RecentNotes::class, limit: 20)->assertData(
+        fn (NotesData $data): bool => $data->total === 11 && $data->notes[0]->body === 'Signed in.',
     );
 });
 
