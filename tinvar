@@ -184,6 +184,28 @@ function setup(AppConsole $console, bool $nextSteps = true): int
 {
     $root = realpath(APP_ROOT) ?: APP_ROOT;
 
+    // This machine says it is a developer's (ADR 0213): .env, from
+    // .env.example and its TINVAR_ENV=local, where there is none yet and
+    // nothing in the environment says this is a server's. Dev mode, the
+    // mail log and the rest that is for a developer alone are refused where
+    // TINVAR_ENV says nothing.
+    $environment = array_filter(getenv(), \is_string(...));
+    if (!is_file(APP_ROOT . '/.env') && is_file(APP_ROOT . '/.env.example') && EnvironmentFile::refusedHere($environment) === null) {
+        if (!copy(APP_ROOT . '/.env.example', APP_ROOT . '/.env') || !chmod(APP_ROOT . '/.env', 0o600)) {
+            fwrite(STDERR, "Could not write .env from .env.example; copy it by hand, then run setup again.\n");
+
+            return 1;
+        }
+        try {
+            EnvironmentFile::load(APP_ROOT . '/.env');
+        } catch (ConfigException $e) {
+            fwrite(STDERR, $e->getMessage() . "\n");
+
+            return 1;
+        }
+        echo ".env: written from .env.example, with TINVAR_ENV=" . (getenv('TINVAR_ENV') ?: '') . "\n";
+    }
+
     try {
         Kernel::appKey();
         Kernel::probeToken();

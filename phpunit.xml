@@ -12,6 +12,10 @@
       <directory>tests/Feature</directory>
     </testsuite>
   </testsuites>
+  <php>
+    <!-- A test's machine: the testing layer and its fakes run only where TINVAR_ENV says so (ADR 0213). -->
+    <env name="TINVAR_ENV" value="testing"/>
+  </php>
   <source>
     <include>
       <directory>app</directory>

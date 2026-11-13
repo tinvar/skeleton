@@ -1250,8 +1250,9 @@ final class Kernel implements TestableApplication, Terminable
     }
 
     /**
-     * Who the app's email is from: APP_MAIL_FROM. In development, a stand-in
-     * on localhost; where the environment says production, it must be set,
+     * Who the app's email is from: APP_MAIL_FROM. In development -- TINVAR_ENV
+     * local, development or testing -- a stand-in on localhost; anywhere
+     * else, an environment that says nothing included, it must be set,
      * since mail from an address nobody owns is mail nobody can answer, and
      * the boot stops without.
      */
@@ -1261,9 +1262,11 @@ final class Kernel implements TestableApplication, Terminable
         if ($from !== null && $from !== '') {
             return new Address($from, self::NAME);
         }
-        $marker = DevMode::productionMarker(array_filter(getenv(), \is_string(...)));
-        if ($marker !== null) {
-            throw new \RuntimeException("APP_MAIL_FROM is not set, and {$marker}=production: set it to the address the app's email comes from, as hello@app.example.");
+        // A stand-in only where the environment says this is a developer's
+        // machine; one that says nothing may be production's (ADR 0213).
+        $why = DevMode::notDevelopment();
+        if ($why !== null) {
+            throw new \RuntimeException("APP_MAIL_FROM is not set, and {$why}: set it to the address the app's email comes from, as hello@app.example.");
         }
 
         return new Address('no-reply@app.localhost', self::NAME);
